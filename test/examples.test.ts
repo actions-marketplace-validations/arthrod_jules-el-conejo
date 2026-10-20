@@ -14,6 +14,7 @@ type Step = {
 
 type Job = {
   if?: string;
+  env?: Record<string, string>;
   permissions?: Record<string, string>;
   steps: Step[];
 };
@@ -91,13 +92,31 @@ describe("examples/session-cleanup-on-merge.yml", () => {
       expect(outputs.session_id).toBe("16871897978654894041");
     });
 
-    it("extracts the session id from a session URL", async () => {
+    it("ignores Jules links that are only mentioned in the PR text", async () => {
+      // Deletion is permanent, so only Jules's own footer may pick the session.
       const outputs = await runExtract(
-        "Work is tracked at https://jules.google.com/session/123456789 for this PR.",
+        "Follow-up to https://jules.google.com/session/123456789 and https://jules.google.com/task/987654321.",
+      );
+
+      expect(outputs.found).toBe("false");
+      expect(outputs.session_id).toBeUndefined();
+    });
+
+    it("takes the session from the footer, not from other links", async () => {
+      const outputs = await runExtract(
+        "Builds on https://jules.google.com/task/111.\n\n*PR created automatically by Jules for task [16871897978654894041](https://jules.google.com/task/16871897978654894041) started by @someone*",
       );
 
       expect(outputs.found).toBe("true");
-      expect(outputs.session_id).toBe("123456789");
+      expect(outputs.session_id).toBe("16871897978654894041");
+    });
+
+    it("rejects a footer whose link and label disagree", async () => {
+      const outputs = await runExtract(
+        "*PR created automatically by Jules for task [111](https://jules.google.com/task/222) started by @someone*",
+      );
+
+      expect(outputs.found).toBe("false");
     });
 
     it("does not mistake ses_ substrings inside words for sessions", async () => {
@@ -148,8 +167,20 @@ describe("examples/autonomous-bug-fixer.yml", () => {
       "has id jules",
     );
 
-    expect(julesStep.if).toContain("github.event.issue.user.login");
-    expect(julesStep.if).toContain("github.event.sender.login");
+    // Exact match: turning && into || or dropping a contains() must fail here.
+    expect(julesStep.if).toBe(
+      "contains(fromJSON(env.TRUSTED_USERS), github.event.issue.user.login) && contains(fromJSON(env.TRUSTED_USERS), github.event.sender.login)",
+    );
+  });
+
+  it("declares TRUSTED_USERS as a JSON list of logins", () => {
+    const users = JSON.parse(fixerJob.env?.TRUSTED_USERS ?? "null");
+
+    expect(Array.isArray(users)).toBe(true);
+    expect(users.length).toBeGreaterThan(0);
+    for (const user of users) {
+      expect(typeof user).toBe("string");
+    }
   });
 
   it("invokes arthrod/jules-action", () => {

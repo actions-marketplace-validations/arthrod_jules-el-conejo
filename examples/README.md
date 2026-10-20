@@ -89,7 +89,7 @@ Like `bug-fixer.yml`, but Jules skips plan approval and opens a PR on its own, t
 ### [session-cleanup-on-merge.yml](./session-cleanup-on-merge.yml)
 **Trigger:** Pull request merged
 
-Deletes the Jules session behind a merged Jules PR. The session ID comes from the `jules.google.com/task/<id>` link that Jules puts at the end of the PR body.
+Deletes the Jules session behind a merged Jules PR. The session ID comes from the footer that Jules puts at the end of the PR body (`PR created automatically by Jules for task [<id>](https://jules.google.com/task/<id>)`). Other Jules links in the PR text are ignored.
 
 **Notes:**
 - Runs only for PRs from this repository, never for forks.
