@@ -31,7 +31,6 @@ describe("the action is branded Jules, el conejo", () => {
   // Built from parts so this file does not match its own search.
   const retired = [
     ["jules", "action"].join("-"),
-    ["google-labs-code", "jules-invoke"].join("/"),
     ["jules", "invoke"].join("-"),
   ];
 
