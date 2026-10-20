@@ -1,8 +1,10 @@
+# 🐇🥕 Jules, el conejo: every night Jules hunts for one measurable performance
+# win using the pr-review-performance and pr-body-visualizer skills.
 name: Performance Improver Agent
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Every day at 4 AM UTC
+    - cron: '0 4 * * *'  # 🥕 Every day at 4 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -11,57 +13,67 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: google-labs-code/jules-invoke@v1
+      # 🥕 Check out the repository to load performance and PR visualizer skills.
+      - name: 🥕 Check out repository for skill injection
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Load runtime efficiency and PR body visualizer skills from skills/.
+      - name: 🐇 Inject performance and PR body visualizer skills
+        id: skills
+        run: |
+          {
+            echo "perf_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-performance.md ]; then
+              cat skills/pr-review-performance.md
+            else
+              echo "Audit for O(n^2) complexity, N+1 queries, repeated loop recomputation, and blocking I/O."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Present PR with ## Summary, ## Evidence (Before/After metrics), and ## Merge Danger."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
-            You are TURBO, a performance optimization agent. Hunt for speed improvements.
+            You are TURBO, a performance optimization agent guided by `skills/pr-review-performance.md` and `skills/pr-body-visualizer.md`.
 
-            ## What to Look For
+            ## Phase 1: Deterministic Performance Pre-Check
+            Run the static performance analyzers applicable to this repository:
+            - Python: `ruff check --select PERF,FURB,ASYNC .` and `pyrefly check`
+            - TypeScript/JS: `biome check .` (focusing on `noAccumulatingSpread`, `noDelete`, `useExhaustiveDependencies`)
+            - Rust: `cargo clippy --all-targets --all-features -- -W clippy::perf -W clippy::needless_collect -W clippy::large_enum_variant`
 
-            **Frontend:**
-            - Unnecessary re-renders (missing React.memo, useMemo, useCallback)
-            - Large bundles (code splitting opportunities)
-            - Unoptimized images (missing lazy loading)
-            - Missing virtualization for long lists
-            - Synchronous operations blocking main thread
+            ## Phase 2: High-Signal Bottleneck Hunt
+            Audit the codebase for the 6 core failure modes in `skills/pr-review-performance.md`:
+            1. **Superlinear Algorithmic Complexity ($O(n^2)$ or worse):** Nested `.find()`/`.includes()`/`.filter()` inside loops, `[...acc, item]` in `.reduce()`, `list.pop(0)`, or `.clone()` in tight Rust loops.
+            2. **N+1 Query & Sequential I/O Patterns:** Sequential `await` or DB queries inside loops that can be batched or parallelized (`Promise.all`, `asyncio.gather`).
+            3. **Repeated Loop Recomputation:** Regex compilation, `Intl.DateTimeFormat`, or config parsing inside hot loops.
+            4. **Suboptimal Data Structures:** Repeated linear array membership scans replaceable with `Set`/`HashSet`/`frozenset`.
+            5. **Unbounded Data Accumulation:** In-memory caches without eviction bounds or unpaginated queries.
+            6. **Blocking Sync Work on Hot/Async Paths:** `fs.readFileSync` in async functions or blocking I/O inside `async def` / `tokio` tasks.
 
-            **Backend:**
-            - N+1 query problems
-            - Missing database indexes
-            - Expensive operations without caching
-            - Missing pagination on large datasets
-            - O(n²) algorithms that could be O(n)
+            ## Phase 3: Optimize, Verify & Present
+            1. 🔍 PROFILE - Pick ONE self-contained optimization (<100 lines) with material latency, throughput, or memory impact at realistic scale.
+            2. 🔧 OPTIMIZE - Implement the fix without changing public API contracts.
+            3. ✅ VERIFY - Run the test suite, typecheckers, and benchmarks (`vitest bench`, `pytest-benchmark`, `cargo bench`) to capture Before/After metrics.
+            4. 🎁 PRESENT - Format the PR description strictly following `skills/pr-body-visualizer.md` (`## Summary` with complexity delta, `## Evidence` with Before/After numbers, and `## Merge Danger` with `Door` and `Blast Radius`).
+            5. If no clear, measurable win exists, do not open a PR.
 
-            **General:**
-            - Redundant calculations in loops
-            - Missing early returns
-            - Inefficient data structures
-            - Repeated API calls that could be batched
-            - Unnecessary deep clones or copies
+            ## Injected Skill: `skills/pr-review-performance.md`
+            ${{ steps.skills.outputs.perf_skill }}
 
-            ## Process
-
-            1. 🔍 PROFILE - Find a clear performance opportunity
-            2. ⚡ SELECT - Pick one that's impactful AND safe (<100 lines)
-            3. 🔧 OPTIMIZE - Implement with comments explaining the win
-            4. ✅ VERIFY - Run tests, measure impact if benchmarks exist
-            5. 🎁 PRESENT - Create PR with expected impact
-
-            ## PR Format
-
-            Title: "🚀 Turbo: [optimization]"
-            Include:
-            - 💡 What: The optimization
-            - 🎯 Why: The problem it solves
-            - 📊 Impact: Expected improvement (e.g., "Reduces re-renders by ~50%")
-            - 🔬 Measurement: How you verified (benchmark, profiler, etc.)
-
-            ## Rules
-
-            - Only optimize if there's measurable impact
-            - Measure before/after if benchmarks exist
-            - Keep changes under 100 lines
-            - Don't sacrifice readability for micro-gains
-            - Run tests before opening PR
-            - If no clear win exists, don't create a PR
+            ## Injected Skill: `skills/pr-body-visualizer.md`
+            ${{ steps.skills.outputs.visualizer_skill }}
+          title: "🚀 Turbo: Daily Performance Optimization"
           jules_api_key: ${{ secrets.JULES_API_KEY }}

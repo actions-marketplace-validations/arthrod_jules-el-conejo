@@ -1,0 +1,374 @@
+# 🐇🥕 Jules, el conejo: multi-stage PR reviewer that runs multi-tool static
+# analysis, strict typechecking, posts detailed review comments, and launches
+# Jules to open a companion fix PR. 🥕 Replace TRUSTED_USERS with your logins.
+name: Multi-Stage PR Reviewer & Companion Fix PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: '🐇 Pull request number to review and remediate'
+        required: true
+        type: string
+
+concurrency:
+  group: pr-reviewer-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-review-pipeline:
+    name: Static Analysis, Typecheck, Detailed Review & Fix PR
+    # 🥕 Only run on same-repo PRs from trusted authors and skip draft/WIP PRs. 🐇
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.draft == false &&
+        !contains(github.event.pull_request.title, 'WIP') &&
+        !contains(github.event.pull_request.title, 'DO NOT MERGE') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      TRUSTED_USERS: '["your-username", "trusted-collaborator"]'
+
+    steps:
+      # 🥕 Stage 0: Check out the PR branch with full history so git diff and analyzers work.
+      - name: 🥕 Check out PR branch with full history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 🐇 Stage 1: Detect changed files by language and inject all relevant review skills.
+      - name: 🐇 Detect changed stacks and inject review skills
+        id: skills
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          CHANGED_FILES="$(git diff --name-only --diff-filter=ACMR "origin/${BASE_REF}...HEAD" 2>/dev/null || git diff --name-only HEAD~1 2>/dev/null || true)"
+          {
+            echo "changed_files<<__JULES_EOF__"
+            echo "${CHANGED_FILES}"
+            echo "__JULES_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+          load_skill() {
+            local key="$1"
+            local file="$2"
+            local fallback="$3"
+            {
+              echo "${key}<<__JULES_SKILL_EOF__"
+              if [ -f "$file" ]; then
+                cat "$file"
+              else
+                echo "$fallback"
+              fi
+              echo "__JULES_SKILL_EOF__"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          load_skill "triage_skill" "skills/pr-review-static-triage.md" "Calibrate defects by Confidence (1-3) and Priority (1-3)."
+          load_skill "security_skill" "skills/pr-review-security-owasp.md" "Enforce query parameterization, secret scanning, and OWASP Top 10 checks."
+          load_skill "perf_skill" "skills/pr-review-performance.md" "Audit for O(n^2) loops, N+1 queries, and blocking I/O."
+          load_skill "arch_skill" "skills/pr-review-architecture-quality.md" "Enforce Single Responsibility, direct imports (no barrel files), and error robustness."
+          load_skill "testing_skill" "skills/pr-review-testing.md" "Verify unit/regression test adequacy and deterministic teardown."
+          load_skill "polyglot_skill" "skills/pr-review-polyglot-standards.md" "Enforce PEP 8/20, Pure Bash, markdownlint, yamllint, and actionlint."
+          load_skill "rust_skill" "skills/pr-review-rust-quality.md" "Audit Rust memory safety, concurrency, and ownership idioms."
+          load_skill "visualizer_skill" "skills/pr-body-visualizer.md" "Enforce Summary, Before/After Evidence, and Merge Danger sections."
+
+      # 🥕 Stage 2: Run multi-tool static analysis (Ruff, Biome, Clippy, ShellCheck, Actionlint, Gitleaks).
+      - name: 🥕 Step 1 — Run static analysis across multiple tools
+        id: static_analysis
+        run: |
+          REPORT_FILE="$(mktemp)"
+          STATUS="passed"
+
+          run_tool() {
+            local label="$1"
+            shift
+            echo "### 🛠️ ${label}" >> "$REPORT_FILE"
+            local out
+            if out="$("$@" 2>&1)"; then
+              echo "- **Status:** ✅ Passed" >> "$REPORT_FILE"
+            else
+              STATUS="failed"
+              {
+                echo "- **Status:** ❌ Findings detected"
+                echo '```text'
+                printf '%s\n' "$out" | head -n 60
+                echo '```'
+              } >> "$REPORT_FILE"
+            fi
+            echo "" >> "$REPORT_FILE"
+          }
+
+          # Secrets scan (Gitleaks)
+          if command -v gitleaks >/dev/null 2>&1; then
+            run_tool "Gitleaks (Secrets Scan)" gitleaks detect --source . --no-git
+          fi
+
+          # Python static analysis (Ruff + pip-audit)
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || git ls-files '*.py' | grep -q .; then
+            if command -v ruff >/dev/null 2>&1; then
+              run_tool "Ruff (Python Lint, Security & Perf)" ruff check --line-length 100 --select E,F,W,N,B,S,PERF,FURB,ASYNC,BLE,TRY,PLR,RET,SIM,TID,UP,RUF,PT,LOG,G --output-format=github .
+            fi
+            if command -v pip-audit >/dev/null 2>&1 && [ -f requirements.txt ]; then
+              run_tool "pip-audit (Python Supply Chain)" pip-audit -r requirements.txt
+            fi
+          fi
+
+          # TypeScript / JavaScript static analysis (Biome)
+          if [ -f biome.json ] || [ -f biome.jsonc ] || [ -f package.json ]; then
+            if command -v biome >/dev/null 2>&1; then
+              run_tool "Biome (TS/JS Lint & Barrel-File Check)" biome check --reporter=github .
+            elif [ -x ./node_modules/.bin/biome ]; then
+              run_tool "Biome (TS/JS Lint & Barrel-File Check)" ./node_modules/.bin/biome check --reporter=github .
+            fi
+          fi
+
+          # Rust static analysis (Cargo Clippy & Cargo Deny)
+          if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+            run_tool "Cargo Clippy (Rust Systems & Perf)" cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic -W clippy::perf -A clippy::missing_errors_doc -A clippy::missing_panics_doc
+            if command -v cargo-deny >/dev/null 2>&1; then
+              run_tool "Cargo Deny (Rust Supply Chain)" cargo deny check advisories bans licenses sources
+            fi
+          fi
+
+          # Bash / Shell static analysis (ShellCheck)
+          SHELL_FILES="$(git ls-files '*.sh' || true)"
+          if [ -n "$SHELL_FILES" ] && command -v shellcheck >/dev/null 2>&1; then
+            # shellcheck disable=SC2086
+            run_tool "ShellCheck (Bash Scripts)" shellcheck --format=gcc $SHELL_FILES
+          fi
+
+          # GitHub Actions static analysis (Actionlint)
+          if [ -d .github/workflows ] && command -v actionlint >/dev/null 2>&1; then
+            run_tool "Actionlint (GitHub Workflows)" actionlint
+          fi
+
+          # Markdown & YAML static analysis
+          if command -v markdownlint-cli2 >/dev/null 2>&1; then
+            run_tool "markdownlint-cli2 (Documentation)" markdownlint-cli2 "README.md" "docs/**/*.md"
+          fi
+          if [ -f .yamllint.conf ] && command -v yamllint >/dev/null 2>&1; then
+            run_tool "yamllint (YAML Configs)" yamllint -c .yamllint.conf .
+          fi
+
+          if [ ! -s "$REPORT_FILE" ]; then
+            echo "- ✅ No static analysis issues detected by installed runners." > "$REPORT_FILE"
+          fi
+
+          {
+            echo "status=${STATUS}"
+            echo "report<<__JULES_STATIC_EOF__"
+            cat "$REPORT_FILE"
+            echo "__JULES_STATIC_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$REPORT_FILE"
+
+      # 🐇 Stage 3: Run strict multi-language typechecking (Pyrefly, TypeScript tsc, Cargo check).
+      - name: 🐇 Step 2 — Run multi-language typechecking
+        id: typecheck
+        run: |
+          REPORT_FILE="$(mktemp)"
+          STATUS="passed"
+
+          run_typecheck() {
+            local label="$1"
+            shift
+            echo "### 🔎 ${label}" >> "$REPORT_FILE"
+            local out
+            if out="$("$@" 2>&1)"; then
+              echo "- **Status:** ✅ Passed (0 type errors)" >> "$REPORT_FILE"
+            else
+              STATUS="failed"
+              {
+                echo "- **Status:** ❌ Type errors detected"
+                echo '```text'
+                printf '%s\n' "$out" | head -n 60
+                echo '```'
+              } >> "$REPORT_FILE"
+            fi
+            echo "" >> "$REPORT_FILE"
+          }
+
+          # Python typecheck (Pyrefly)
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || git ls-files '*.py' | grep -q .; then
+            if command -v pyrefly >/dev/null 2>&1; then
+              run_typecheck "Pyrefly (Python Static Typecheck)" pyrefly check --output-format=github
+            fi
+          fi
+
+          # TypeScript typecheck (tsc --noEmit)
+          if [ -f tsconfig.json ]; then
+            if command -v tsc >/dev/null 2>&1; then
+              run_typecheck "TypeScript Compiler (tsc --noEmit)" tsc --noEmit
+            elif [ -x ./node_modules/.bin/tsc ]; then
+              run_typecheck "TypeScript Compiler (tsc --noEmit)" ./node_modules/.bin/tsc --noEmit
+            fi
+          fi
+
+          # Rust type & borrow check (cargo check)
+          if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+            run_typecheck "Cargo Check (Rust Type & Borrow Verification)" cargo check --all-targets --all-features
+          fi
+
+          if [ ! -s "$REPORT_FILE" ]; then
+            echo "- ✅ Typecheck gate clean across configured languages." > "$REPORT_FILE"
+          fi
+
+          {
+            echo "status=${STATUS}"
+            echo "report<<__JULES_TYPECHECK_EOF__"
+            cat "$REPORT_FILE"
+            echo "__JULES_TYPECHECK_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$REPORT_FILE"
+
+      # 🥕 Stage 4: Post detailed PR review comments (tool tables, PR body audit, and line-level guidance).
+      - name: 🥕 Step 3 — Post detailed PR review comments
+        id: post_review
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          STATIC_STATUS: ${{ steps.static_analysis.outputs.status }}
+          STATIC_REPORT: ${{ steps.static_analysis.outputs.report }}
+          TYPECHECK_STATUS: ${{ steps.typecheck.outputs.status }}
+          TYPECHECK_REPORT: ${{ steps.typecheck.outputs.report }}
+          CHANGED_FILES: ${{ steps.skills.outputs.changed_files }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const hasSummary = /^## Summary/m.test(body);
+            const hasEvidence = /^## Evidence/m.test(body);
+            const hasMergeDanger = /^## Merge Danger/m.test(body);
+
+            const staticStatus = process.env.STATIC_STATUS === 'passed' ? '✅ Passed' : '❌ Action Required';
+            const typeStatus = process.env.TYPECHECK_STATUS === 'passed' ? '✅ Passed' : '❌ Action Required';
+            const bodyStatus = (hasSummary && hasEvidence && hasMergeDanger) ? '✅ Compliant' : '⚠️ Missing Sections';
+
+            const changedList = (process.env.CHANGED_FILES || '')
+              .split('\n')
+              .filter(Boolean)
+              .slice(0, 25)
+              .map(f => `- \`${f}\``)
+              .join('\n') || '- *(No modified files detected)*';
+
+            const commentBody = [
+              '## 🐇🥕 Jules, el conejo — Multi-Stage PR Review Report',
+              '',
+              '| Pipeline Stage | Gate Status | Injected Skills |',
+              '| :--- | :--- | :--- |',
+              `| **1. Multi-Tool Static Analysis** | ${staticStatus} | \`pr-review-static-triage\`, \`pr-review-security-owasp\`, \`pr-review-performance\`, \`pr-review-polyglot-standards\` |`,
+              `| **2. Strict Typechecking** | ${typeStatus} | \`pr-review-architecture-quality\`, \`pr-review-rust-quality\`, \`pr-review-testing\` |`,
+              `| **3. PR Body Evidence Audit** | ${bodyStatus} | \`pr-body-visualizer\` |`,
+              '',
+              '### 📂 Reviewed Files',
+              changedList,
+              '',
+              '### 🛠️ Stage 1: Static Analysis Diagnostics',
+              process.env.STATIC_REPORT || 'No static analysis findings.',
+              '',
+              '### 🔎 Stage 2: Typechecking Diagnostics',
+              process.env.TYPECHECK_REPORT || 'No typechecking findings.',
+              '',
+              '### 🖼️ Stage 3: PR Description Contract (`skills/pr-body-visualizer.md`)',
+              `- ${hasSummary ? '✅' : '⚠️'} \`## Summary\` (architecture diagram, diff-sketch, or call-tree)`,
+              `- ${hasEvidence ? '✅' : '⚠️'} \`## Evidence\` (\`**Before:**\` vs \`**After:**\` execution output)`,
+              `- ${hasMergeDanger ? '✅' : '⚠️'} \`## Merge Danger\` (\`**Door:**\` one-way/two-way & \`**Blast Radius:**\`)`,
+              '',
+              '> 🐇 *Jules, el conejo, is now analyzing the diff and diagnostics to open a companion PR with targeted fixes and regression tests.*'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: commentBody
+            });
+
+      # 🐇 Stage 5: Trigger Jules, el conejo, to perform deep code review and open a companion fix PR.
+      - name: 🐇 Step 4 — Run Jules, el conejo, to create a companion fix PR
+        id: jules
+        if: >-
+          (github.event_name == 'workflow_dispatch' && contains(fromJSON(env.TRUSTED_USERS), github.actor)) ||
+          (github.event_name == 'pull_request' && contains(fromJSON(env.TRUSTED_USERS), github.event.pull_request.user.login))
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
+        with:
+          prompt: |
+            You are a Principal Multi-Stage PR Reviewer and Remediation Agent working on Pull Request #${{ github.event.pull_request.number || inputs.pr_number }} ("${{ github.event.pull_request.title }}").
+
+            ## Changed Files in PR
+            ${{ steps.skills.outputs.changed_files }}
+
+            ## Stage 1 Output: Multi-Tool Static Analysis Diagnostics
+            ${{ steps.static_analysis.outputs.report }}
+
+            ## Stage 2 Output: Strict Typechecking Diagnostics
+            ${{ steps.typecheck.outputs.report }}
+
+            ## Your Mission (Multi-Step Review & Remediation PR)
+            1. **Resolve Static Analysis & Typecheck Findings:** Fix every deterministic linter, security, and type-checker issue reported in Stages 1 and 2 above (`pyrefly`, `ruff`, `biome`, `tsc`, `cargo clippy`, `shellcheck`, `actionlint`, `gitleaks`).
+            2. **Semantic Security, Performance & Architecture Audit:**
+               - Enforce parameterized queries, sensitive log protection, and PII allowlists (`skills/pr-review-security-owasp.md`).
+               - Eliminate $O(n^2)$ loops, N+1 queries, sequential `await` in loops, and blocking I/O on hot paths (`skills/pr-review-performance.md`).
+               - Enforce Single Responsibility, public API call-site consistency, direct module imports (no barrel files), and robust error handling (`skills/pr-review-architecture-quality.md`).
+               - For Rust changes, audit `unsafe` blocks, lock guards across `.await`, and `.unwrap()` usage (`skills/pr-review-rust-quality.md`).
+            3. **Test Adequacy & Hygiene:** Add missing unit, edge-case, and error-path tests for new or fixed logic with deterministic teardown (`skills/pr-review-testing.md`).
+            4. **Open a Companion PR:** Open a PR against `${{ github.event.pull_request.head.ref || 'main' }}` formatted with `skills/pr-body-visualizer.md` (`## Summary`, `## Evidence` Before/After, `## Merge Danger` Door & Blast Radius) and detailed explanations of each review finding fixed.
+
+            ## Injected Skill: `skills/pr-review-static-triage.md`
+            ${{ steps.skills.outputs.triage_skill }}
+
+            ## Injected Skill: `skills/pr-review-security-owasp.md`
+            ${{ steps.skills.outputs.security_skill }}
+
+            ## Injected Skill: `skills/pr-review-performance.md`
+            ${{ steps.skills.outputs.perf_skill }}
+
+            ## Injected Skill: `skills/pr-review-architecture-quality.md`
+            ${{ steps.skills.outputs.arch_skill }}
+
+            ## Injected Skill: `skills/pr-review-testing.md`
+            ${{ steps.skills.outputs.testing_skill }}
+
+            ## Injected Skill: `skills/pr-review-polyglot-standards.md`
+            ${{ steps.skills.outputs.polyglot_skill }}
+
+            ## Injected Skill: `skills/pr-review-rust-quality.md`
+            ${{ steps.skills.outputs.rust_skill }}
+
+            ## Injected Skill: `skills/pr-body-visualizer.md`
+            ${{ steps.skills.outputs.visualizer_skill }}
+          title: "🐇 PR Review Remediation: #${{ github.event.pull_request.number || inputs.pr_number }}"
+          require_plan_approval: false
+          automation_mode: AUTO_CREATE_PR
+          starting_branch: ${{ github.event.pull_request.head.ref || 'main' }}
+          include_last_commit: true
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+
+      # 🥕 Post the Jules companion session link back onto the PR thread.
+      - name: 🥕 Post Jules companion PR session link on PR
+        if: github.event_name == 'pull_request' && steps.jules.outputs.session_id != ''
+        uses: actions/github-script@v7
+        env:
+          SESSION_ID: ${{ steps.jules.outputs.session_id }}
+          SESSION_URL: ${{ steps.jules.outputs.session_url }}
+        with:
+          script: |
+            const session = process.env.SESSION_URL || `\`${process.env.SESSION_ID}\``;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `🐇🥕 Jules, el conejo, started a companion remediation session for this PR: ${session}`
+            });

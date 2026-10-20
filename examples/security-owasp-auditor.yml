@@ -1,0 +1,156 @@
+# 🐇🥕 Jules, el conejo: continuous OWASP Top 10, PII/PHI privacy, and supply-chain
+# security gatekeeper injecting pr-review-security-owasp, pr-review-static-triage,
+# and pr-body-visualizer skills.
+name: OWASP Security & Supply-Chain Auditor
+
+on:
+  schedule:
+    # 🥕 Run daily at 5 AM UTC
+    - cron: '0 5 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'pnpm-lock.yaml'
+      - 'bun.lock'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'uv.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  workflow_dispatch:
+    inputs:
+      audit_scope:
+        description: '🐇 Scope of security audit (full, supply-chain, or owasp-pii)'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - supply-chain
+          - owasp-pii
+
+jobs:
+  security-gate:
+    name: Run Security Scanners & Dispatch Jules Remediation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # 🥕 Check out the repository with recent commit history for dependency diffing.
+      - name: 🥕 Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+          persist-credentials: false
+
+      # 🐇 Execute deterministic security and supply-chain scanners before invoking Jules.
+      - name: 🐇 Run pre-flight security & supply-chain toolchain
+        id: sec_scan
+        run: |
+          SCAN_OUT="$(mktemp)"
+
+          if command -v gitleaks >/dev/null 2>&1; then
+            echo "### Gitleaks Secret Scan" >> "$SCAN_OUT"
+            gitleaks detect --source . --no-git >> "$SCAN_OUT" 2>&1 || true
+          fi
+
+          if command -v ruff >/dev/null 2>&1 && git ls-files '*.py' | grep -q .; then
+            echo "### Ruff Security & Logging Scan (S, LOG, G)" >> "$SCAN_OUT"
+            ruff check --select S,LOG,G --output-format=github . >> "$SCAN_OUT" 2>&1 || true
+          fi
+
+          if command -v pip-audit >/dev/null 2>&1 && [ -f requirements.txt ]; then
+            echo "### Python Dependency Audit (pip-audit)" >> "$SCAN_OUT"
+            pip-audit -r requirements.txt >> "$SCAN_OUT" 2>&1 || true
+          fi
+
+          if [ -f package.json ] && command -v npm >/dev/null 2>&1; then
+            echo "### Node.js Dependency Audit (npm audit)" >> "$SCAN_OUT"
+            npm audit --audit-level=moderate >> "$SCAN_OUT" 2>&1 || true
+          fi
+
+          if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+            if command -v cargo-audit >/dev/null 2>&1; then
+              echo "### Rust Crate Advisory Audit (cargo audit)" >> "$SCAN_OUT"
+              cargo audit >> "$SCAN_OUT" 2>&1 || true
+            fi
+            if command -v cargo-deny >/dev/null 2>&1; then
+              echo "### Rust License & Source Audit (cargo deny)" >> "$SCAN_OUT"
+              cargo deny check advisories licenses bans sources >> "$SCAN_OUT" 2>&1 || true
+            fi
+          fi
+
+          {
+            echo "findings<<__JULES_SEC_EOF__"
+            head -n 120 "$SCAN_OUT"
+            echo "__JULES_SEC_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$SCAN_OUT"
+
+      # 🥕 Inject OWASP security, static triage, and PR body visualizer skills.
+      - name: 🥕 Inject security, triage, and visualizer skills
+        id: skills
+        run: |
+          {
+            echo "security_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-security-owasp.md ]; then
+              cat skills/pr-review-security-owasp.md
+            else
+              echo "Audit SQL parameterization, sensitive log leaks, OWASP Top 10, dependency CVEs, and PII/PHI exposure."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "triage_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-static-triage.md ]; then
+              cat skills/pr-review-static-triage.md
+            else
+              echo "Audit client-side secret exposure, DOM XSS, SSRF IP validation, path traversal, and TLS verification."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Format PR body with Summary, Before/After Evidence, and Merge Danger."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      # 🐇 Launch Jules, el conejo, to patch verified security vulnerabilities and open a PR.
+      - name: 🐇 Run Jules, el conejo, for OWASP & supply-chain remediation
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
+        with:
+          prompt: |
+            You are an Application Security, Privacy, and Supply-Chain Remediation Agent.
+            **Audit Scope:** `${{ inputs.audit_scope || 'full' }}`
+
+            ## Pre-Flight Security Scanner Output
+            ${{ steps.sec_scan.outputs.findings }}
+
+            ## Security Remediation Mandate
+            Execute the full security toolchain and audit the codebase against the injected skills below:
+            1. **Query Parameterization (`Check 1 - ERROR`):** Replace any string-concatenated, f-string, template-literal, or `format!()` SQL/NoSQL/ORM queries with parameterized prepared statements.
+            2. **Sensitive Log & Output Leak Prevention (`Check 2 - ERROR`):** Remove secrets, tokens, or PII from log statements and convert interpolated log strings to structured key-value logging.
+            3. **OWASP Web 2021 & API 2023 Hardening (`Check 3` & `Category A`):** Fix SSRF hostname validation flaws, path traversal (`..` segment checks), DOM XSS (`innerHTML`), disabled TLS (`verify=False`), and missing auth guards.
+            4. **Dependency CVE & License Remediation (`Check 4`):** Upgrade dependencies with verified CVEs (`pip-audit`, `npm audit`, `cargo audit`) and flag or replace non-permissive licenses.
+            5. **PII / PHI Allowlist Guard (`Check 5 - ERROR`):** Convert denylist serializers (`exclude={"password"}` / `omit(user, ['password'])`) into explicit allowlist DTOs.
+            6. **PR Presentation:** Only open a PR if a concrete vulnerability, leak, or CVE is remediated. Format the PR body using `skills/pr-body-visualizer.md`.
+
+            ## Injected Skill: `skills/pr-review-security-owasp.md`
+            ${{ steps.skills.outputs.security_skill }}
+
+            ## Injected Skill: `skills/pr-review-static-triage.md`
+            ${{ steps.skills.outputs.triage_skill }}
+
+            ## Injected Skill: `skills/pr-body-visualizer.md`
+            ${{ steps.skills.outputs.visualizer_skill }}
+          title: "🛡️ Security & Supply-Chain Remediation (${{ inputs.audit_scope || 'full' }})"
+          require_plan_approval: false
+          automation_mode: AUTO_CREATE_PR
+          include_last_commit: true
+          jules_api_key: ${{ secrets.JULES_API_KEY }}

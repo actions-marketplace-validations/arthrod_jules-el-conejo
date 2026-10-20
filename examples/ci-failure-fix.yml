@@ -1,35 +1,84 @@
+# 🐇🥕 Jules, el conejo: when your CI workflow fails, Jules inspects the failed
+# jobs, injects polyglot linter/typechecker standards and testing skills, and proposes a fix.
 name: Auto-Fix CI Failures
 
 on:
   workflow_run:
-    workflows: ["CI"]  # Replace with your CI workflow name
+    workflows: ["CI"]  # 🥕 Replace with your CI workflow name
     types: [completed]
 
 jobs:
   fix-failure:
-    # Only run when CI fails
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    # 🐇 Only run when CI fails on an internal branch (never untrusted forks).
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
-    
+
     steps:
-      - name: Download workflow logs
-        uses: actions/github-script@v7
-        id: get-logs
+      # 🥕 Check out the failing branch so skills and commit context are available.
+      - name: 🥕 Check out failing branch
+        uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 20
+          persist-credentials: false
+
+      # 🐇 Collect failed job and step names from the workflow run via GitHub API.
+      - name: 🐇 Summarize failed CI jobs and steps
+        uses: actions/github-script@v7
+        id: failed-jobs
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        with:
+          result-encoding: string
           script: |
-            const logs = await github.rest.actions.downloadWorkflowRunLogs({
+            const runId = Number(process.env.RUN_ID);
+            const { data } = await github.rest.actions.listJobsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              run_id: context.payload.workflow_run.id
+              run_id: runId,
+              filter: 'latest'
             });
-            // Note: This returns a redirect URL to download logs
-            return logs.url;
-      
-      - name: Invoke Jules to fix failure
-        uses: google-labs-code/jules-invoke@v1
+            const failed = data.jobs
+              .filter(job => job.conclusion === 'failure')
+              .map(job => {
+                const steps = (job.steps || [])
+                  .filter(s => s.conclusion === 'failure')
+                  .map(s => `  - Step "${s.name}" (number ${s.number})`)
+                  .join('\n');
+                return `- Job "${job.name}" (${job.html_url}):\n${steps || '  - Failed without step breakdown'}`;
+              });
+            return failed.join('\n') || 'Failed job metadata unavailable.';
+
+      # 🥕 Load polyglot standards and test adequacy skills from skills/.
+      - name: 🥕 Inject polyglot standards and testing skills
+        id: skills
+        run: |
+          {
+            echo "polyglot_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-polyglot-standards.md ]; then
+              cat skills/pr-review-polyglot-standards.md
+            else
+              echo "Enforce pyrefly, ruff, shellcheck, markdownlint-cli2, yamllint, and actionlint compliance."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "testing_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-testing.md ]; then
+              cat skills/pr-review-testing.md
+            else
+              echo "Verify pytest, vitest,tsc, biome, and cargo test suites pass with deterministic isolation."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 🐇 Run Jules, el conejo, to fix the failure
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             The CI workflow "${{ github.event.workflow_run.name }}" has failed.
@@ -38,11 +87,20 @@ jobs:
             **Branch:** ${{ github.event.workflow_run.head_branch }}
             **Commit:** ${{ github.event.workflow_run.head_sha }}
 
-            Please:
-            1. Analyze the failure from the workflow run
-            2. Identify the root cause
-            3. Implement a fix
-            4. Ensure the fix passes CI
+            ## Failed Jobs & Steps
+            ${{ steps.failed-jobs.outputs.result }}
+
+            ## Remediation Instructions
+            1. Reproduce the failure locally in your VM using the toolchains defined in the injected skills (`pyrefly`, `ruff`, `biome`, `tsc --noEmit`, `vitest`, `pytest`, `shellcheck`, `actionlint`, `cargo clippy`).
+            2. Identify the root cause of the build, lint, typecheck, or test failure from the recent commit diff.
+            3. Implement a minimal, standards-compliant fix that satisfies all linters, typecheckers, and test suites without introducing `@ts-ignore`, `# type: ignore`, or blind `except` blocks.
+            4. Re-run the full verification gate to confirm zero errors before opening the PR.
+
+            ## Injected Skill: `skills/pr-review-polyglot-standards.md`
+            ${{ steps.skills.outputs.polyglot_skill }}
+
+            ## Injected Skill: `skills/pr-review-testing.md`
+            ${{ steps.skills.outputs.testing_skill }}
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           starting_branch: ${{ github.event.workflow_run.head_branch }}
           include_last_commit: true

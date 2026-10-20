@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <title>Jules, el conejo</title>
+  <desc>A brave cartoon rabbit in a red cape stands on a rock and raises a carrot high above its head with both paws, the way King Arthur raises Excalibur. The green leaf tuft is the hilt in its paws and the leaves spread out as a crossguard; the orange carrot points straight up like a blade, and light bursts from its tip against a night sky. Below, the words "Jules, el conejo".</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a103d"/>
+      <stop offset="0.6" stop-color="#2d1b69"/>
+      <stop offset="1" stop-color="#3b2a85"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff8d6" stop-opacity="0.95"/>
+      <stop offset="0.45" stop-color="#ffd54f" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffd54f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="carrot" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff9a3c"/>
+      <stop offset="0.45" stop-color="#f57c1f"/>
+      <stop offset="1" stop-color="#c9601a"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c3cde0"/>
+      <stop offset="1" stop-color="#8f9cb5"/>
+    </linearGradient>
+    <linearGradient id="cape" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e53950"/>
+      <stop offset="1" stop-color="#9c1c33"/>
+    </linearGradient>
+    <linearGradient id="rock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b6f82"/>
+      <stop offset="1" stop-color="#43465a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Night sky -->
+  <rect width="800" height="600" rx="28" fill="url(#sky)"/>
+  <g fill="#ffffff">
+    <circle cx="90" cy="80" r="2.2" opacity="0.8"/>
+    <circle cx="190" cy="160" r="1.6" opacity="0.6"/>
+    <circle cx="690" cy="90" r="2" opacity="0.7"/>
+    <circle cx="615" cy="215" r="1.5" opacity="0.5"/>
+    <circle cx="130" cy="290" r="1.8" opacity="0.5"/>
+    <circle cx="715" cy="320" r="1.6" opacity="0.6"/>
+    <circle cx="60" cy="420" r="1.4" opacity="0.4"/>
+    <circle cx="745" cy="180" r="1.4" opacity="0.5"/>
+    <circle cx="250" cy="70" r="1.6" opacity="0.6"/>
+    <circle cx="560" cy="120" r="1.3" opacity="0.5"/>
+    <circle cx="680" cy="420" r="1.5" opacity="0.4"/>
+  </g>
+
+  <!-- Light bursting from the carrot tip -->
+  <circle cx="400" cy="58" r="120" fill="url(#glow)"/>
+  <g stroke="#ffe082" stroke-width="6" stroke-linecap="round" opacity="0.8">
+    <line x1="400" y1="22" x2="400" y2="6"/>
+    <line x1="362" y1="34" x2="336" y2="14"/>
+    <line x1="438" y1="34" x2="464" y2="14"/>
+    <line x1="346" y1="60" x2="306" y2="52"/>
+    <line x1="454" y1="60" x2="494" y2="52"/>
+    <line x1="352" y1="88" x2="316" y2="104"/>
+    <line x1="448" y1="88" x2="484" y2="104"/>
+  </g>
+  <g fill="#fff8e1">
+    <path d="M286 30 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z"/>
+    <path d="M512 26 l2.5 7 7 2.5 -7 2.5 -2.5 7 -2.5 -7 -7 -2.5 7 -2.5 z"/>
+    <path d="M268 140 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2 z"/>
+    <path d="M530 150 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2 z"/>
+    <circle cx="372" cy="12" r="2.5"/>
+    <circle cx="432" cy="104" r="2.5"/>
+  </g>
+
+  <!-- The rock -->
+  <ellipse cx="400" cy="492" rx="150" ry="16" fill="#14102e" opacity="0.5"/>
+  <path d="M282 488 Q276 456 304 440 L350 418 Q380 406 410 412 L462 428 Q502 440 510 466 L516 488 Q510 498 482 498 L314 498 Q288 498 282 488 Z" fill="url(#rock)"/>
+  <path d="M318 462 Q346 440 386 442 L424 450 Q452 456 464 472 L468 480 Q444 470 416 472 L356 476 Q332 476 318 462 Z" fill="#7d8296" opacity="0.7"/>
+
+  <!-- Cape, flowing to the right behind the rabbit -->
+  <path d="M372 340 Q330 400 344 470 Q400 486 492 462 Q520 452 538 430 Q480 420 462 380 Q446 352 428 340 Z" fill="url(#cape)"/>
+  <path d="M462 380 Q480 420 538 430 Q512 446 486 448 Q470 420 462 380 Z" fill="#7a1428" opacity="0.6"/>
+
+  <!-- Tail -->
+  <circle cx="452" cy="436" r="15" fill="#e8edf5"/>
+  <circle cx="455" cy="433" r="8" fill="#f8fafc"/>
+
+  <!-- Arms raised overhead: shoulders to paws, drawn behind head and ears -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M370 360 Q326 300 392 214" stroke="#8f9cb5" stroke-width="25"/>
+    <path d="M430 360 Q474 300 408 214" stroke="#8f9cb5" stroke-width="25"/>
+    <path d="M370 360 Q326 300 392 214" stroke="#b3bfd4" stroke-width="17"/>
+    <path d="M430 360 Q474 300 408 214" stroke="#b3bfd4" stroke-width="17"/>
+  </g>
+
+  <!-- Body -->
+  <path d="M352 440 Q340 382 366 352 Q400 330 434 352 Q460 382 448 440 Q444 474 400 474 Q356 474 352 440 Z" fill="url(#fur)"/>
+  <ellipse cx="400" cy="420" rx="34" ry="40" fill="#e9eef6"/>
+  <path d="M434 352 Q460 382 448 440 Q444 466 424 472 Q442 430 436 390 Q434 366 434 352 Z" fill="#7b88a3" opacity="0.45"/>
+  <!-- Cape clasp -->
+  <circle cx="400" cy="352" r="7" fill="#ffd54f" stroke="#b8860b" stroke-width="1.5"/>
+
+  <!-- Feet -->
+  <ellipse cx="372" cy="476" rx="26" ry="12" fill="#9fabbe"/>
+  <ellipse cx="428" cy="476" rx="26" ry="12" fill="#9fabbe"/>
+  <ellipse cx="370" cy="473" rx="16" ry="6" fill="#e9eef6"/>
+  <ellipse cx="430" cy="473" rx="16" ry="6" fill="#e9eef6"/>
+
+  <!-- Ears, flared out like a war banner -->
+  <path d="M386 278 Q350 262 316 232 Q292 210 300 194 Q312 182 332 196 Q372 226 398 264 Z" fill="url(#fur)"/>
+  <path d="M382 264 Q350 244 322 220 Q308 204 312 199 Q330 208 354 228 Q372 246 382 264 Z" fill="#e2a4b5" opacity="0.85"/>
+  <path d="M 414 278 Q 450 262 484 232 Q 508 210 500 194 Q 488 182 468 196 Q 428 226 402 264 Z" fill="url(#fur)"/>
+  <path d="M 418 264 Q 450 244 478 220 Q 492 204 488 199 Q 470 208 446 228 Q 428 246 418 264 Z" fill="#e2a4b5" opacity="0.85"/>
+
+  <!-- Head -->
+  <circle cx="400" cy="306" r="44" fill="url(#fur)"/>
+  <path d="M360 318 Q370 344 400 348 Q384 330 382 312 Z" fill="#7b88a3" opacity="0.35"/>
+  <ellipse cx="372" cy="322" rx="9" ry="5" fill="#f2a7b8" opacity="0.6"/>
+  <ellipse cx="428" cy="322" rx="9" ry="5" fill="#f2a7b8" opacity="0.6"/>
+  <ellipse cx="400" cy="324" rx="18" ry="13" fill="#e9eef6"/>
+  <path d="M394 315 L406 315 L400 322 Z" fill="#e2748a"/>
+  <path d="M392 327 Q400 336 408 327" stroke="#5d5a6e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Eyes gazing up at the carrot -->
+  <circle cx="384" cy="298" r="6.5" fill="#2b2440"/>
+  <circle cx="416" cy="298" r="6.5" fill="#2b2440"/>
+  <circle cx="386" cy="295" r="2.2" fill="#ffffff"/>
+  <circle cx="418" cy="295" r="2.2" fill="#ffffff"/>
+  <path d="M374 285 L390 281" stroke="#5d5a6e" stroke-width="3" stroke-linecap="round"/>
+  <path d="M426 285 L410 281" stroke="#5d5a6e" stroke-width="3" stroke-linecap="round"/>
+  <g stroke="#dfe6ef" stroke-width="1.8" stroke-linecap="round">
+    <line x1="364" y1="318" x2="332" y2="312"/>
+    <line x1="364" y1="326" x2="332" y2="330"/>
+    <line x1="436" y1="318" x2="468" y2="312"/>
+    <line x1="436" y1="326" x2="468" y2="330"/>
+  </g>
+
+  <!-- The carrot, held like Excalibur -->
+  <!-- Pommel: leaf ends hanging below the paws -->
+  <g fill="#43a047" stroke="#2e7d32" stroke-width="1">
+    <path d="M400 232 Q388 244 392 258 Q400 250 402 236 Z"/>
+    <path d="M400 232 Q412 244 408 258 Q400 250 398 236 Z" fill="#4caf50"/>
+  </g>
+  <!-- Grip: green stems wrapped in both paws -->
+  <rect x="393" y="188" width="14" height="46" rx="5" fill="#388e3c"/>
+  <circle cx="400" cy="222" r="13" fill="#e9eef6" stroke="#8f9cb5" stroke-width="2"/>
+  <circle cx="400" cy="202" r="13" fill="#e9eef6" stroke="#8f9cb5" stroke-width="2"/>
+  <path d="M390 220 L410 220 M390 200 L410 200" stroke="#b3bfd4" stroke-width="1.5"/>
+  <!-- Crossguard: leaves spread left and right -->
+  <g stroke="#2e7d32" stroke-width="1">
+    <path d="M400 186 Q372 170 340 178 Q356 194 384 192 Z" fill="#43a047"/>
+    <path d="M400 186 Q428 170 460 178 Q444 194 416 192 Z" fill="#43a047"/>
+    <path d="M400 186 Q380 178 362 186 Q378 196 396 192 Z" fill="#66bb6a"/>
+    <path d="M400 186 Q420 178 438 186 Q422 196 404 192 Z" fill="#66bb6a"/>
+  </g>
+  <!-- Blade: wide at the crossguard, tapering to the tip -->
+  <path d="M384 184 Q384 170 386 150 Q392 90 400 34 Q408 90 414 150 Q416 170 416 184 Q400 190 384 184 Z" fill="url(#carrot)"/>
+  <path d="M388 182 Q388 160 391 140 Q395 90 400 40 L400 186 Q394 186 388 182 Z" fill="#ffc285" opacity="0.4"/>
+  <g stroke="#b35415" stroke-width="2" stroke-linecap="round" opacity="0.75">
+    <line x1="389" y1="168" x2="398" y2="166"/>
+    <line x1="403" y1="152" x2="412" y2="150"/>
+    <line x1="391" y1="134" x2="399" y2="132"/>
+    <line x1="402" y1="116" x2="409" y2="114"/>
+    <line x1="394" y1="98" x2="400" y2="96"/>
+    <line x1="401" y1="80" x2="405" y2="78"/>
+  </g>
+  <circle cx="400" cy="36" r="8" fill="#fffde7"/>
+  <circle cx="400" cy="36" r="16" fill="#fffde7" opacity="0.4"/>
+
+  <!-- Title -->
+  <text x="400" y="560" text-anchor="middle" font-family="'Trebuchet MS', 'Segoe UI', Verdana, sans-serif" font-size="52" font-weight="bold" fill="#ffe082">Jules, el conejo</text>
+</svg>

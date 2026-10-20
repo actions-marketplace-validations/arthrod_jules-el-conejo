@@ -1,228 +1,120 @@
-name: Jules Invoke
-description: 'Invoke Jules, an AI-powered coding agent, to perform tasks on your codebase.'
+name: Jules, el conejo
+description: '🐇🥕 Jules, el conejo, hands tasks on your codebase to Jules, the AI coding agent from Google Labs.'
 
 branding:
   icon: 'code'
-  color: 'purple'
+  color: 'orange'
 
 inputs:
   prompt:
-    description: 'The prompt to pass to Jules (required for create mode)'
+    description: '🥕 The prompt to pass to Jules (required for create mode)'
     required: false
-    type: string
     default: ''
   title:
-    description: 'Optional title for the Jules session (auto-generated if omitted)'
+    description: '🐇 Optional title for the Jules session (auto-generated if omitted)'
     required: false
-    type: string
     default: ''
   include_last_commit:
-    description: 'Whether to pass content of the last commit'
-    type: boolean
+    description: '🥕 Whether to pass content of the last commit (true/false)'
     default: false
   include_commit_log:
-    description: 'Whether to pass commit history'
-    type: boolean
+    description: '🥕 Whether to pass commit history (true/false)'
     default: false
   starting_branch:
-    description: 'The branch for Jules to start from'
+    description: '🐇 The branch for Jules to start from'
     required: false
-    type: string
     default: 'main'
   require_plan_approval:
-    description: 'Whether Jules should wait for plan approval before executing. Set to false for fully autonomous operation.'
-    type: boolean
+    description: '🐇 true makes Jules wait for plan approval; false (default) runs fully autonomously. Only true/false (any case) are accepted.'
     default: false
   automation_mode:
-    description: 'Automation mode for the session. AUTO_CREATE_PR makes Jules create a PR automatically.'
+    description: '🥕 Jules AutomationMode: AUTO_CREATE_PR (default) opens a PR automatically; AUTOMATION_MODE_UNSPECIFIED creates no PR.'
     required: false
-    type: string
     default: 'AUTO_CREATE_PR'
   jules_api_key:
-    description: 'The Jules API key to use for authentication'
+    description: '🐇🔑 The Jules API key to use for authentication (pass it from secrets)'
     required: true
-    type: string
   mode:
-    description: 'Action mode: create (default) to start a new session, delete to remove an existing session'
+    description: '🥕 create (default) starts a new session; delete removes an existing one. Case-insensitive; any other value is an error.'
     required: false
-    type: string
     default: 'create'
   session_id:
-    description: 'Session ID for delete mode (e.g., sessions/ses_abc123 or just ses_abc123)'
+    description: '🐇 Session to delete in delete mode, e.g. 16871897978654894041 or sessions/16871897978654894041'
     required: false
-    type: string
     default: ''
 
 outputs:
   session_id:
-    description: 'The Jules session ID (e.g., ses_abc123)'
-    value: ${{ steps.invoke.outputs.session_id }}
+    description: '🥕 The Jules session ID, e.g. 16871897978654894041 (create and delete modes)'
+    value: ${{ steps.invoke.outputs.session_id || steps.delete.outputs.session_id }}
   session_name:
-    description: 'The full session resource name (e.g., sessions/ses_abc123)'
-    value: ${{ steps.invoke.outputs.session_name }}
+    description: '🥕 The full session resource name, e.g. sessions/16871897978654894041 (create and delete modes)'
+    value: ${{ steps.invoke.outputs.session_name || steps.delete.outputs.session_name }}
+  session_url:
+    description: '🐇 Link to the session in the Jules web app (create mode)'
+    value: ${{ steps.invoke.outputs.session_url }}
   response:
-    description: 'The full JSON response from the Jules API'
+    description: '🥕 The full JSON response from the Jules API (create mode)'
     value: ${{ steps.invoke.outputs.response }}
 
 runs:
   using: "composite"
   steps:
+    # All values reach scripts/jules.sh through env; no ${{ }} inside run blocks.
+    # Later steps use the normalized values that validate writes as outputs.
     - name: Validate inputs
+      id: validate
       shell: bash
       env:
-        MODE: ${{ inputs.mode }}
-        PROMPT: ${{ inputs.prompt }}
-        SESSION_ID: ${{ inputs.session_id }}
-      run: |
-        if [ "$MODE" = "create" ] && [ -z "$PROMPT" ]; then
-          echo "::error::prompt is required for create mode"
-          exit 1
-        fi
-        if [ "$MODE" = "delete" ] && [ -z "$SESSION_ID" ]; then
-          echo "::error::session_id is required for delete mode"
-          exit 1
-        fi
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        JULES_MODE: ${{ inputs.mode }}
+        JULES_PROMPT: ${{ inputs.prompt }}
+        JULES_SESSION_ID: ${{ inputs.session_id }}
+        JULES_REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
+        JULES_AUTOMATION_MODE: ${{ inputs.automation_mode }}
+        JULES_INCLUDE_LAST_COMMIT: ${{ inputs.include_last_commit }}
+        JULES_INCLUDE_COMMIT_LOG: ${{ inputs.include_commit_log }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" validate
 
-    - uses: actions/checkout@v5
-      if: ${{ inputs.mode == 'create' }}
+    # Only for include_last_commit/include_commit_log when the caller has no
+    # checkout, and never into the caller's workspace itself (see jules.sh).
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      if: ${{ steps.validate.outputs.needs_checkout == 'true' }}
       with:
+        path: ${{ steps.validate.outputs.git_context_dir }}
         fetch-depth: 30
-
-    - name: Create initial prompt
-      if: ${{ inputs.mode == 'create' }}
-      env:
-        USER_PROMPT: ${{ inputs.prompt }}
-      shell: bash
-      run: |
-        echo "$USER_PROMPT" > prompt.txt
-
-    - name: Save last commit content
-      if: ${{ inputs.mode == 'create' && inputs.include_last_commit == 'true' }}
-      shell: bash
-      run: |
-        echo -e '\n\nContent of the latest commit (in the format of `git show`):' >> prompt.txt
-        echo '```' >> prompt.txt
-        git show   >> prompt.txt
-        echo '```' >> prompt.txt
-
-    - name: Save git log
-      if: ${{ inputs.mode == 'create' && inputs.include_commit_log == 'true' }}
-      shell: bash
-      run: |
-        echo -e '\n\nLog of the last 20 commits (in the format of `git log --stat`):' >> prompt.txt
-        echo '```'         >> prompt.txt
-        git log -20 --stat >> prompt.txt
-        echo '```'         >> prompt.txt
-
-    - name: Assemble Jules payload
-      if: ${{ inputs.mode == 'create' }}
-      env:
-        TITLE: ${{ inputs.title }}
-        REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
-        AUTOMATION_MODE: ${{ inputs.automation_mode }}
-      shell: bash
-      run: |
-        PLAN_APPROVAL="false"
-        if [ "$REQUIRE_PLAN_APPROVAL" = "true" ]; then
-          PLAN_APPROVAL="true"
-        fi
-
-        ARGS=(
-          --arg jules_prompt "$(cat prompt.txt)"
-          --arg starting_branch "${{ inputs.starting_branch }}"
-          --arg repo_full_name "${{ github.repository }}"
-          --argjson require_plan_approval "$PLAN_APPROVAL"
-          --arg automation_mode "$AUTOMATION_MODE"
-        )
-
-        FILTER='{
-          "prompt": $jules_prompt,
-          "sourceContext": {
-            "source": "sources/github/\($repo_full_name)",
-            "githubRepoContext": {
-              "startingBranch": $starting_branch
-            }
-          },
-          "requirePlanApproval": $require_plan_approval,
-          "automationMode": $automation_mode
-        }'
-
-        if [ -n "$TITLE" ]; then
-          ARGS+=(--arg title "$TITLE")
-          FILTER='{
-            "prompt": $jules_prompt,
-            "title": $title,
-            "sourceContext": {
-              "source": "sources/github/\($repo_full_name)",
-              "githubRepoContext": {
-                "startingBranch": $starting_branch
-              }
-            },
-            "requirePlanApproval": $require_plan_approval,
-            "automationMode": $automation_mode
-          }'
-        fi
-
-        jq -n "${ARGS[@]}" "$FILTER" > jules_payload.json
+        persist-credentials: false
 
     - name: Create Jules session
       id: invoke
-      if: ${{ inputs.mode == 'create' }}
+      if: ${{ steps.validate.outputs.mode == 'create' }}
       shell: bash
-      run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" \
-          'https://jules.googleapis.com/v1alpha/sessions' \
-          -X POST \
-          -H "Content-Type: application/json" \
-          -H "X-Goog-Api-Key: ${{ inputs.jules_api_key }}" \
-          -d @jules_payload.json)
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-        BODY=$(echo "$RESPONSE" | sed '$d')
-
-        if [ "$HTTP_CODE" -ge 400 ]; then
-          echo "::error::Jules API returned HTTP $HTTP_CODE: $BODY"
-          exit 1
-        fi
-
-        echo "$BODY" | jq .
-
-        SESSION_NAME=$(echo "$BODY" | jq -r '.name // empty')
-        SESSION_ID=$(echo "$BODY" | jq -r '.id // empty')
-
-        echo "session_id=$SESSION_ID" >> "$GITHUB_OUTPUT"
-        echo "session_name=$SESSION_NAME" >> "$GITHUB_OUTPUT"
-
-        # Multiline output requires heredoc delimiter
-        {
-          echo "response<<JULES_EOF"
-          echo "$BODY"
-          echo "JULES_EOF"
-        } >> "$GITHUB_OUTPUT"
+      env:
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        JULES_PROMPT: ${{ inputs.prompt }}
+        JULES_TITLE: ${{ inputs.title }}
+        JULES_STARTING_BRANCH: ${{ inputs.starting_branch }}
+        JULES_REPOSITORY: ${{ github.repository }}
+        JULES_REQUIRE_PLAN_APPROVAL: ${{ steps.validate.outputs.require_plan_approval }}
+        JULES_AUTOMATION_MODE: ${{ steps.validate.outputs.automation_mode }}
+        JULES_INCLUDE_LAST_COMMIT: ${{ steps.validate.outputs.include_last_commit }}
+        JULES_INCLUDE_COMMIT_LOG: ${{ steps.validate.outputs.include_commit_log }}
+        JULES_GIT_CONTEXT_DIR: ${{ steps.validate.outputs.git_context_dir }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" create
 
     - name: Delete Jules session
       id: delete
-      if: ${{ inputs.mode == 'delete' }}
-      env:
-        SESSION_ID: ${{ inputs.session_id }}
+      if: ${{ steps.validate.outputs.mode == 'delete' }}
       shell: bash
-      run: |
-        # Normalize: ensure it has the sessions/ prefix
-        if [[ "$SESSION_ID" != sessions/* ]]; then
-          SESSION_ID="sessions/$SESSION_ID"
-        fi
+      env:
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        JULES_SESSION_ID: ${{ inputs.session_id }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" delete
 
-        RESPONSE=$(curl -s -w "\n%{http_code}" \
-          "https://jules.googleapis.com/v1alpha/$SESSION_ID" \
-          -X DELETE \
-          -H "X-Goog-Api-Key: ${{ inputs.jules_api_key }}")
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-        BODY=$(echo "$RESPONSE" | sed '$d')
-
-        if [ "$HTTP_CODE" -ge 400 ]; then
-          echo "::error::Jules API returned HTTP $HTTP_CODE: $BODY"
-          exit 1
-        fi
-
-        echo "Session $SESSION_ID deleted successfully"
+    - name: Remove the .jules-el-conejo-checkout directory
+      id: cleanup
+      if: ${{ always() && steps.validate.outputs.needs_checkout == 'true' }}
+      shell: bash
+      env:
+        JULES_GIT_CONTEXT_DIR: ${{ steps.validate.outputs.git_context_dir }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" cleanup

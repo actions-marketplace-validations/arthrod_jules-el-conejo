@@ -1,0 +1,15 @@
+{
+  "name": "jules-el-conejo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check test vitest.config.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "fast-xml-parser": "^5.11.2",
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
+  }
+}

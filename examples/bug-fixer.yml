@@ -1,3 +1,5 @@
+# 🐇🥕 Jules, el conejo: label an issue `bug` and Jules diagnoses and fixes it,
+# injecting static triage and test adequacy skills while waiting for plan approval.
 name: Auto-Fix Bugs
 
 on:
@@ -6,22 +8,54 @@ on:
 
 jobs:
   fix-bug:
-    # Only run when the 'bug' label is added
-    # Note you can also get Jules to trigger
+    # 🥕 Only run when the 'bug' label is added.
+    # 🐇 Note you can also get Jules to trigger
     # on repos by adding the 'jules' label,
     # but this example lets you manage the prompt
-    # explicitly, add preamble, etc.
+    # explicitly, inject skills, and add preambles.
     if: github.event.label.name == 'bug'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: read
-    
+
     steps:
-      - name: Invoke Jules
-        # SECURITY: Only allow trusted users to trigger Jules
-        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
-        uses: google-labs-code/jules-invoke@v1
+      # 🥕 Check out the repository to load skills from skills/.
+      - name: 🥕 Check out repository for skill injection
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Inject static triage and test adequacy skills into the debugging prompt.
+      - name: 🐇 Inject static triage and testing skills
+        id: skills
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
+        run: |
+          {
+            echo "triage_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-static-triage.md ]; then
+              cat skills/pr-review-static-triage.md
+            else
+              echo "Run deterministic static analyzers (pyrefly, ruff, biome, tsc, cargo clippy) to isolate root-cause defects."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "testing_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-testing.md ]; then
+              cat skills/pr-review-testing.md
+            else
+              echo "Require regression tests that fail before the fix and pass after, with full resource teardown."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 SECURITY: Only trusted users may trigger Jules: both the issue author
+        # (whose issue body becomes the prompt) and whoever added the label.
+        # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             Please diagnose and fix the following bug:
@@ -31,15 +65,17 @@ jobs:
             ${{ github.event.issue.body }}
 
             Debugging Process:
-            1. **Analysis** - Review the bug report and identify the root cause
-            2. **Diagnosis** - Trace the issue through the codebase
-            3. **Fix** - Implement a minimal, targeted fix
-            4. **Testing** - Add a regression test that would have caught this bug
-            5. **Documentation** - Add comments explaining the fix
+            1. **Static Triage & Analysis** - Run the deterministic static analyzers from `skills/pr-review-static-triage.md` (`pyrefly`, `ruff`, `biome`, `tsc`, `cargo clippy`) and identify the root cause.
+            2. **Diagnosis** - Trace the defect through the codebase, checking for related security, async I/O, or type-safety edge cases.
+            3. **Fix** - Implement a minimal, targeted fix.
+            4. **Testing** - Add a regression test and error-path assertions in strict compliance with `skills/pr-review-testing.md`.
+            5. **Documentation** - Document the root cause and before/after verification evidence.
 
-            Please provide:
-            - Clear explanation of the root cause
-            - The complete fix with all necessary changes
-            - Test cases to prevent regression
+            ## Injected Skill: `skills/pr-review-static-triage.md`
+            ${{ steps.skills.outputs.triage_skill }}
+
+            ## Injected Skill: `skills/pr-review-testing.md`
+            ${{ steps.skills.outputs.testing_skill }}
+          require_plan_approval: true
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           starting_branch: 'main'

@@ -1,3 +1,6 @@
+# 🐇🥕 Jules, el conejo: when a PR that Jules opened is merged, audit its PR body
+# against skills/pr-body-visualizer.md and delete its Jules session so finished
+# work does not pile up in the Jules web app.
 name: Clean Up Jules Session on PR Merge
 
 on:
@@ -6,35 +9,84 @@ on:
 
 jobs:
   cleanup-session:
-    # Only run when a PR is merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # 🥕 Only run when a PR is merged (not just closed), and only for PRs from this
+    # repository: fork PRs get no secrets, and their body is not ours to trust. 🐇
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      # Extract session ID from PR body or labels.
-      # This assumes the Jules session ID was stored in the PR body
-      # (Jules typically includes this when using AUTO_CREATE_PR).
+      # 🥕 Check out the repository to load the PR body visualizer skill for merge audit.
+      - name: 🥕 Check out repository for skill injection
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Inject skills/pr-body-visualizer.md and audit the merged PR description structure.
+      - name: 🐇 Inject PR body visualizer skill and audit merged PR evidence
+        id: audit_body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Require ## Summary, ## Evidence (Before/After), and ## Merge Danger (Door & Blast Radius)."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### 🐇🥕 Merged PR Evidence Audit (PR #$PR_NUMBER)"
+            echo "Audited against injected skill \`skills/pr-body-visualizer.md\`:"
+            if printf '%s' "$PR_BODY" | grep -q '^## Summary'; then
+              echo "- ✅ \`## Summary\` visual architecture section present"
+            else
+              echo "- ⚠️ \`## Summary\` section missing"
+            fi
+            if printf '%s' "$PR_BODY" | grep -q '^## Evidence'; then
+              echo "- ✅ \`## Evidence\` Before/After verification section present"
+            else
+              echo "- ⚠️ \`## Evidence\` section missing"
+            fi
+            if printf '%s' "$PR_BODY" | grep -q '^## Merge Danger'; then
+              echo "- ✅ \`## Merge Danger\` Door & Blast Radius classification present"
+            else
+              echo "- ⚠️ \`## Merge Danger\` section missing"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 🐇 Jules PRs (AUTO_CREATE_PR) end with a footer that links the task, e.g.
+      # "PR created automatically by Jules for task
+      # [16871897978654894041](https://jules.google.com/task/16871897978654894041)".
+      # The number in that link is the session ID. Only that footer counts, with
+      # the same ID in label and link: deleting is permanent, and a Jules link
+      # someone merely mentions in the PR text must not pick the session. 🥕
       - name: Extract Jules session ID from PR
         id: extract
         uses: actions/github-script@v7
         with:
           script: |
             const body = context.payload.pull_request.body || '';
-            // Look for a Jules session reference in PR body
-            const match = body.match(/ses_[a-zA-Z0-9]+/);
+            const match = body.match(/PR created automatically by Jules for task \[(\d+)\]\(https:\/\/jules\.google\.com\/task\/\1\)/);
             if (match) {
-              core.setOutput('session_id', match[0]);
+              core.setOutput('session_id', match[1]);
               core.setOutput('found', 'true');
             } else {
               core.setOutput('found', 'false');
-              console.log('No Jules session ID found in PR body');
+              console.log('🐇 No Jules footer found in PR body');
             }
 
-      - name: Delete Jules session
+      # 🥕 Deleting a session cannot be undone: its plan, activity and chat history
+      # are gone from Jules once this step succeeds.
+      - name: 🐇 Delete the Jules session with Jules, el conejo
         if: steps.extract.outputs.found == 'true'
-        uses: nq-rdl/jules-action@main
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           mode: delete
           session_id: ${{ steps.extract.outputs.session_id }}

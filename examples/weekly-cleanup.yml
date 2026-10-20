@@ -1,55 +1,94 @@
+# 🐇🥕 Jules, el conejo: every Monday Jules tidies the codebase (dead code,
+# duplication, barrel files, and polyglot standards) using injected skills.
 name: Weekly Codebase Cleanup
 
 on:
   schedule:
-    # Run every Monday at 2 AM UTC
+    # 🥕 Run every Monday at 2 AM UTC
     - cron: '0 2 * * 1'
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: # 🐇 Allow manual triggers
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    
+
     steps:
-      - name: Invoke Jules for Cleanup
-        uses: google-labs-code/jules-invoke@v1
+      # 🥕 Check out the repository with commit history so skills and git log are ready.
+      - name: 🥕 Check out repository for skill injection
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+          persist-credentials: false
+
+      # 🐇 Load static triage, architecture quality, and polyglot standards skills.
+      - name: 🐇 Inject static triage, architecture, and polyglot skills
+        id: skills
+        run: |
+          {
+            echo "triage_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-static-triage.md ]; then
+              cat skills/pr-review-static-triage.md
+            else
+              echo "Triage code hygiene, duplication, dead code, and type suppressors by Confidence (1-3) and Priority (1-3)."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "arch_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-architecture-quality.md ]; then
+              cat skills/pr-review-architecture-quality.md
+            else
+              echo "Enforce Single Responsibility, direct module imports (no barrel files), and error handling robustness."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "polyglot_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-polyglot-standards.md ]; then
+              cat skills/pr-review-polyglot-standards.md
+            else
+              echo "Enforce PEP 8/20, Pure Bash idioms, markdownlint, yamllint, and actionlint compliance."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 🐇 Run Jules, el conejo, for the cleanup
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
-            Please analyze the codebase and perform maintenance tasks:
+            Perform a weekly codebase maintenance and hygiene sweep guided by the injected skills below.
 
             ## Focus Areas
 
-            1. **Dead Code Removal**
-               - Find unused variables, functions, and classes
-               - Remove commented-out code blocks
-               - Clean up unreachable code paths
+            1. **Deterministic Linter & Type-Checker Sweep**
+               - Run `pyrefly`, `ruff`, `biome ci`, `tsc --noEmit`, `cargo clippy`, `shellcheck`, and `actionlint` as applicable.
+               - Eliminate unjustified `@ts-ignore`, blanket `biome-ignore`, and bare `# type: ignore` suppressors.
 
-            2. **Code Duplication**
-               - Identify duplicated code blocks
-               - Refactor into reusable functions
-               - Apply DRY principles
+            2. **Dead Code & Cross-Module Duplication Removal (`skills/pr-review-static-triage.md`)**
+               - Remove unused exports, orphaned `@deprecated` helpers, leftover debug logs, and commented-out code (`ERA`).
+               - Consolidate duplicated utilities across packages while respecting AHA (Avoid Hasty Abstractions).
 
-            3. **Complexity Reduction**
-               - Simplify overly complex functions
-               - Break down large functions into smaller pieces
-               - Reduce nested conditionals
+            3. **Architecture & Direct Imports (`skills/pr-review-architecture-quality.md`)**
+               - Replace barrel file imports (`index.ts` / bloated `__init__.py`) with direct module imports.
+               - Decompose functions with >5 parameters into typed parameter objects and harden swallowed error handlers.
 
-            4. **Naming Improvements**
-               - Find unclear variable/function names
-               - Apply consistent naming conventions
-
-            5. **Code Formatting**
-               - Fix inconsistent indentation
-               - Organize imports
+            4. **Polyglot & Shell Idioms (`skills/pr-review-polyglot-standards.md`)**
+               - Modernize Bash scripts to Pure Bash parameter expansions and ensure `shellcheck` compliance.
+               - Ensure Python docstrings and PEP 8/20 idioms are clean.
 
             Guidelines:
-            - Make incremental, safe refactorings
-            - Preserve existing functionality
-            - Run tests to verify changes
-            - Group related changes logically
+            - Prioritize Confidence-1, self-contained refactorings that preserve public API behavior.
+            - Run the full test and typecheck suite to verify changes.
+            - Do not open a PR if you do not have a validated and impactful change.
 
-            Do not open a PR if you do not have a validated and impactful change.
+            ## Injected Skill: `skills/pr-review-static-triage.md`
+            ${{ steps.skills.outputs.triage_skill }}
+
+            ## Injected Skill: `skills/pr-review-architecture-quality.md`
+            ${{ steps.skills.outputs.arch_skill }}
+
+            ## Injected Skill: `skills/pr-review-polyglot-standards.md`
+            ${{ steps.skills.outputs.polyglot_skill }}
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           include_commit_log: true

@@ -1,3 +1,6 @@
+# 🐇🥕 Jules, el conejo: label an issue `bug` and Jules fixes it and opens a PR,
+# no plan approval needed, injecting pr-review-testing and pr-body-visualizer skills.
+# 🥕 Replace TRUSTED_USERS with your own logins first.
 name: Autonomous Bug Fix (No Plan Approval)
 
 on:
@@ -10,24 +13,68 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: read
+      issues: write
+    env:
+      TRUSTED_USERS: '["your-username", "trusted-collaborator"]'
 
     steps:
-      - name: Invoke Jules (fully autonomous)
+      # 🥕 Check out the repository so skill definitions in skills/ can be injected.
+      - name: 🥕 Check out repository for skill injection
+        if: contains(fromJSON(env.TRUSTED_USERS), github.event.issue.user.login) && contains(fromJSON(env.TRUSTED_USERS), github.event.sender.login)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Load testing and PR body visualizer skills to guide autonomous remediation.
+      - name: 🐇 Inject testing and PR visualizer skills
+        id: skills
+        if: contains(fromJSON(env.TRUSTED_USERS), github.event.issue.user.login) && contains(fromJSON(env.TRUSTED_USERS), github.event.sender.login)
+        run: |
+          {
+            echo "testing_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-testing.md ]; then
+              cat skills/pr-review-testing.md
+            else
+              echo "Enforce unit/regression test adequacy, test isolation, and deterministic teardown."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Format PR description with ## Summary, ## Evidence (Before/After), and ## Merge Danger."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      # 🐇 The issue body becomes the prompt and Jules opens a PR without asking,
+      # so both the issue author and whoever added the label must be trusted. 🥕
+      - name: 🐇 Run Jules, el conejo (fully autonomous)
         id: jules
-        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
-        uses: nq-rdl/jules-action@main
+        if: contains(fromJSON(env.TRUSTED_USERS), github.event.issue.user.login) && contains(fromJSON(env.TRUSTED_USERS), github.event.sender.login)
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
-            Please diagnose and fix the following bug:
+            Please diagnose and fix the following bug autonomously:
 
             ## ${{ github.event.issue.title }}
 
             ${{ github.event.issue.body }}
 
-            1. Analyze the bug report and identify the root cause
-            2. Implement a minimal, targeted fix
-            3. Add a regression test
+            ## Execution Workflow
+            1. Analyze the bug report and identify the root cause.
+            2. Implement a minimal, targeted fix without breaking public API contracts.
+            3. Run the static analysis and type-checking gate for the affected stack (`pyrefly`/`ruff`, `biome`/`tsc --noEmit`, or `cargo clippy`).
+            4. Add a dedicated regression test that fails without your fix and passes with it, following the injected Testing Skill below.
+            5. Structure the resulting Pull Request description using the injected PR Body Visualizer Skill below.
+
+            ## Injected Skill: `skills/pr-review-testing.md`
+            ${{ steps.skills.outputs.testing_skill }}
+
+            ## Injected Skill: `skills/pr-body-visualizer.md`
+            ${{ steps.skills.outputs.visualizer_skill }}
           title: "Fix: ${{ github.event.issue.title }}"
           require_plan_approval: false
           automation_mode: AUTO_CREATE_PR
@@ -37,11 +84,15 @@ jobs:
       - name: Comment session link on issue
         if: steps.jules.outputs.session_id != ''
         uses: actions/github-script@v7
+        env:
+          SESSION_ID: ${{ steps.jules.outputs.session_id }}
+          SESSION_URL: ${{ steps.jules.outputs.session_url }}
         with:
           script: |
+            const session = process.env.SESSION_URL || `\`${process.env.SESSION_ID}\``;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Jules is working on this! Session: \`${{ steps.jules.outputs.session_id }}\``
+              body: `🐇🥕 Jules is working on this! Session: ${session}`
             });
