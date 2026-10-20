@@ -118,14 +118,3 @@ describe("action.yaml uses validated values", () => {
     );
   });
 });
-
-describe("action outputs", () => {
-  const script = readFileSync(join(REPO_ROOT, "scripts", "jules.sh"), "utf8");
-
-  it.each(Object.keys(action.outputs))(
-    "output %s is written by scripts/jules.sh",
-    (key) => {
-      expect(script).toMatch(new RegExp(`echo "${key}(=|<<)`));
-    },
-  );
-});

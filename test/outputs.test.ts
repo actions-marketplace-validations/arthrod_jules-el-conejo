@@ -183,6 +183,42 @@ describe("action.yaml outputs wiring", () => {
   });
 });
 
+describe("every action output is written to GITHUB_OUTPUT by its step", () => {
+  const refs = Object.entries(action.outputs).flatMap(([name, output]) =>
+    [...output.value.matchAll(/steps\.(\w+)\.outputs\.(\w+)/g)].map(
+      ([, step, key]) => ({ name, step, key }),
+    ),
+  );
+  const runStep: Record<string, () => Promise<Record<string, string>>> = {
+    invoke: async () => {
+      mock = await startMockJules();
+      return (await runJules("create", createEnv(mock.baseUrl))).outputs;
+    },
+    delete: async () => {
+      mock = await startMockJules(() => json(200, {}));
+      return (await runJules("delete", deleteEnv(mock.baseUrl, "77"))).outputs;
+    },
+  };
+
+  it("reads only steps this test can run", () => {
+    expect(refs.length).toBeGreaterThan(0);
+    for (const ref of refs) {
+      expect(Object.keys(runStep), `${ref.name} reads ${ref.step}`).toContain(
+        ref.step,
+      );
+    }
+  });
+
+  it.each(refs.map((ref) => [ref.name, ref.step, ref.key]))(
+    "output %s: step %s writes %s",
+    async (_name, step, key) => {
+      const outputs = await runStep[step]();
+
+      expect(outputs).toHaveProperty(key);
+    },
+  );
+});
+
 describe("jules.sh create payload title", () => {
   it("omits the title key when JULES_TITLE is empty", async () => {
     // already true
