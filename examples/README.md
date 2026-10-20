@@ -75,6 +75,28 @@ Uses the [on-unblocked](https://github.com/google-labs-code/on-unblocked) action
 
 ---
 
+### [autonomous-bug-fixer.yml](./autonomous-bug-fixer.yml)
+**Trigger:** Issue labeled with `bug`
+
+Like `bug-fixer.yml`, but Jules skips plan approval and opens a PR on its own, then comments the session link on the issue.
+
+**Setup:**
+- Replace the `TRUSTED_USERS` list. Jules only runs when both the issue author and the person who added the label are on it, because the issue body becomes the prompt.
+- Needs `issues: write` to post the comment.
+
+---
+
+### [session-cleanup-on-merge.yml](./session-cleanup-on-merge.yml)
+**Trigger:** Pull request merged
+
+Deletes the Jules session behind a merged Jules PR. The session ID comes from the `jules.google.com/task/<id>` link that Jules puts at the end of the PR body.
+
+**Notes:**
+- Runs only for PRs from this repository, never for forks.
+- Deletion cannot be undone. Leave this workflow out if you want to keep session history.
+
+---
+
 ## Combining Workflows
 
 You can combine multiple approaches:

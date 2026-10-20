@@ -115,8 +115,8 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 
 | Output | Description |
 |--------|-------------|
-| `session_id` | The Jules session ID (e.g., `ses_abc123`) |
-| `session_name` | The full session resource name (e.g., `sessions/ses_abc123`) |
+| `session_id` | The Jules session ID (e.g., `16871897978654894041`) |
+| `session_name` | The full session resource name (e.g., `sessions/16871897978654894041`) |
 | `session_url` | Link to the session in the Jules web app (create mode) |
 | `response` | The full JSON response from the Jules API (create mode) |
 
@@ -135,6 +135,8 @@ Copy these into `.github/workflows/` and customize:
 | [bug-fixer](./examples/bug-fixer.yml) | Issue labeled `bug` | Diagnose and fix bugs (or implement features) with structured prompts |
 | [ci-failure-fix](./examples/ci-failure-fix.yml) | CI workflow fails | Automatically fix failed builds |
 | [unblocked-issues](./examples/unblocked-issues.yml) | Issue closed | Work on issues that were blocked by the closed issue |
+| [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | Fix bugs and open a PR without plan approval, for trusted users only |
+| [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | Delete the Jules session linked from a merged Jules PR |
 | [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | Fully autonomous bug fix with session tracking |
 | [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | Delete Jules session when its PR is merged |
 
