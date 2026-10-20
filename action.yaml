@@ -111,7 +111,7 @@ runs:
         JULES_SESSION_ID: ${{ inputs.session_id }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" delete
 
-    - name: Remove the conejo's checkout
+    - name: Remove the .jules-el-conejo-checkout directory
       id: cleanup
       if: ${{ always() && steps.validate.outputs.needs_checkout == 'true' }}
       shell: bash

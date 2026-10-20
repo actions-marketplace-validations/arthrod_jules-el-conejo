@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/jules-el-conejo.svg" alt="Jules, el conejo: a rabbit raising a carrot like Excalibur" width="480">
+<img src="assets/jules-el-conejo.svg" alt="Jules, el conejo, raising a carrot like Excalibur" width="480">
 
 ## 🐇 Jules, el conejo 🥕
 Send Jules, Google's remote coding agent, to work from any GitHub Actions workflow
@@ -118,7 +118,7 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
 - A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
-- Every error, warning and log line the action prints starts with `🥕🐇 Jules, el conejo:`, so you can spot them in a busy job log.
+- Every error, warning and status line the action prints starts with `🥕🐇 Jules, el conejo:`, so you can spot them in a busy job log. The JSON response that create mode echoes is printed as is.
 
 ## 🐇 Outputs
 
@@ -244,7 +244,7 @@ Jules triggering.
 
 <div align="center">
 
-**Built with ❤️ by Google, carried the last mile by a conejo with a carrot 🐇🥕**
+**🐇🥕 Jules, el conejo** · powered by [Jules](https://jules.google), built with ❤️ by Google Labs
 
 [Jules](https://jules.google) • [API Docs](https://jules.google/docs/api/reference/) • [Report Issues](https://github.com/arthrod/jules-el-conejo/issues)
 
