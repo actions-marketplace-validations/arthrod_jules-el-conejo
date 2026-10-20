@@ -9,48 +9,38 @@ inputs:
   prompt:
     description: 'The prompt to pass to Jules (required for create mode)'
     required: false
-    type: string
     default: ''
   title:
     description: 'Optional title for the Jules session (auto-generated if omitted)'
     required: false
-    type: string
     default: ''
   include_last_commit:
     description: 'Whether to pass content of the last commit'
-    type: boolean
     default: false
   include_commit_log:
     description: 'Whether to pass commit history'
-    type: boolean
     default: false
   starting_branch:
     description: 'The branch for Jules to start from'
     required: false
-    type: string
     default: 'main'
   require_plan_approval:
     description: 'Whether Jules should wait for plan approval before executing. Set to false for fully autonomous operation.'
-    type: boolean
     default: false
   automation_mode:
     description: 'Automation mode for the session. AUTO_CREATE_PR makes Jules create a PR automatically.'
     required: false
-    type: string
     default: 'AUTO_CREATE_PR'
   jules_api_key:
     description: 'The Jules API key to use for authentication'
     required: true
-    type: string
   mode:
     description: 'Action mode: create (default) to start a new session, delete to remove an existing session'
     required: false
-    type: string
     default: 'create'
   session_id:
     description: 'Session ID for delete mode (e.g., sessions/ses_abc123 or just ses_abc123)'
     required: false
-    type: string
     default: ''
 
 outputs:
@@ -67,162 +57,42 @@ outputs:
 runs:
   using: "composite"
   steps:
+    # All values reach scripts/jules.sh through env; no ${{ }} inside run blocks.
     - name: Validate inputs
       shell: bash
       env:
-        MODE: ${{ inputs.mode }}
-        PROMPT: ${{ inputs.prompt }}
-        SESSION_ID: ${{ inputs.session_id }}
-      run: |
-        if [ "$MODE" = "create" ] && [ -z "$PROMPT" ]; then
-          echo "::error::prompt is required for create mode"
-          exit 1
-        fi
-        if [ "$MODE" = "delete" ] && [ -z "$SESSION_ID" ]; then
-          echo "::error::session_id is required for delete mode"
-          exit 1
-        fi
+        JULES_MODE: ${{ inputs.mode }}
+        JULES_PROMPT: ${{ inputs.prompt }}
+        JULES_SESSION_ID: ${{ inputs.session_id }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" validate
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       if: ${{ inputs.mode == 'create' }}
       with:
         fetch-depth: 30
-
-    - name: Create initial prompt
-      if: ${{ inputs.mode == 'create' }}
-      env:
-        USER_PROMPT: ${{ inputs.prompt }}
-      shell: bash
-      run: |
-        echo "$USER_PROMPT" > prompt.txt
-
-    - name: Save last commit content
-      if: ${{ inputs.mode == 'create' && inputs.include_last_commit == 'true' }}
-      shell: bash
-      run: |
-        echo -e '\n\nContent of the latest commit (in the format of `git show`):' >> prompt.txt
-        echo '```' >> prompt.txt
-        git show   >> prompt.txt
-        echo '```' >> prompt.txt
-
-    - name: Save git log
-      if: ${{ inputs.mode == 'create' && inputs.include_commit_log == 'true' }}
-      shell: bash
-      run: |
-        echo -e '\n\nLog of the last 20 commits (in the format of `git log --stat`):' >> prompt.txt
-        echo '```'         >> prompt.txt
-        git log -20 --stat >> prompt.txt
-        echo '```'         >> prompt.txt
-
-    - name: Assemble Jules payload
-      if: ${{ inputs.mode == 'create' }}
-      env:
-        TITLE: ${{ inputs.title }}
-        REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
-        AUTOMATION_MODE: ${{ inputs.automation_mode }}
-      shell: bash
-      run: |
-        PLAN_APPROVAL="false"
-        if [ "$REQUIRE_PLAN_APPROVAL" = "true" ]; then
-          PLAN_APPROVAL="true"
-        fi
-
-        ARGS=(
-          --arg jules_prompt "$(cat prompt.txt)"
-          --arg starting_branch "${{ inputs.starting_branch }}"
-          --arg repo_full_name "${{ github.repository }}"
-          --argjson require_plan_approval "$PLAN_APPROVAL"
-          --arg automation_mode "$AUTOMATION_MODE"
-        )
-
-        FILTER='{
-          "prompt": $jules_prompt,
-          "sourceContext": {
-            "source": "sources/github/\($repo_full_name)",
-            "githubRepoContext": {
-              "startingBranch": $starting_branch
-            }
-          },
-          "requirePlanApproval": $require_plan_approval,
-          "automationMode": $automation_mode
-        }'
-
-        if [ -n "$TITLE" ]; then
-          ARGS+=(--arg title "$TITLE")
-          FILTER='{
-            "prompt": $jules_prompt,
-            "title": $title,
-            "sourceContext": {
-              "source": "sources/github/\($repo_full_name)",
-              "githubRepoContext": {
-                "startingBranch": $starting_branch
-              }
-            },
-            "requirePlanApproval": $require_plan_approval,
-            "automationMode": $automation_mode
-          }'
-        fi
-
-        jq -n "${ARGS[@]}" "$FILTER" > jules_payload.json
+        persist-credentials: false
 
     - name: Create Jules session
       id: invoke
       if: ${{ inputs.mode == 'create' }}
       shell: bash
-      run: |
-        RESPONSE=$(curl -s -w "\n%{http_code}" \
-          'https://jules.googleapis.com/v1alpha/sessions' \
-          -X POST \
-          -H "Content-Type: application/json" \
-          -H "X-Goog-Api-Key: ${{ inputs.jules_api_key }}" \
-          -d @jules_payload.json)
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-        BODY=$(echo "$RESPONSE" | sed '$d')
-
-        if [ "$HTTP_CODE" -ge 400 ]; then
-          echo "::error::Jules API returned HTTP $HTTP_CODE: $BODY"
-          exit 1
-        fi
-
-        echo "$BODY" | jq .
-
-        SESSION_NAME=$(echo "$BODY" | jq -r '.name // empty')
-        SESSION_ID=$(echo "$BODY" | jq -r '.id // empty')
-
-        echo "session_id=$SESSION_ID" >> "$GITHUB_OUTPUT"
-        echo "session_name=$SESSION_NAME" >> "$GITHUB_OUTPUT"
-
-        # Multiline output requires heredoc delimiter
-        {
-          echo "response<<JULES_EOF"
-          echo "$BODY"
-          echo "JULES_EOF"
-        } >> "$GITHUB_OUTPUT"
+      env:
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        JULES_PROMPT: ${{ inputs.prompt }}
+        JULES_TITLE: ${{ inputs.title }}
+        JULES_STARTING_BRANCH: ${{ inputs.starting_branch }}
+        JULES_REPOSITORY: ${{ github.repository }}
+        JULES_REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
+        JULES_AUTOMATION_MODE: ${{ inputs.automation_mode }}
+        JULES_INCLUDE_LAST_COMMIT: ${{ inputs.include_last_commit }}
+        JULES_INCLUDE_COMMIT_LOG: ${{ inputs.include_commit_log }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" create
 
     - name: Delete Jules session
       id: delete
       if: ${{ inputs.mode == 'delete' }}
-      env:
-        SESSION_ID: ${{ inputs.session_id }}
       shell: bash
-      run: |
-        # Normalize: ensure it has the sessions/ prefix
-        if [[ "$SESSION_ID" != sessions/* ]]; then
-          SESSION_ID="sessions/$SESSION_ID"
-        fi
-
-        RESPONSE=$(curl -s -w "\n%{http_code}" \
-          "https://jules.googleapis.com/v1alpha/$SESSION_ID" \
-          -X DELETE \
-          -H "X-Goog-Api-Key: ${{ inputs.jules_api_key }}")
-
-        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-        BODY=$(echo "$RESPONSE" | sed '$d')
-
-        if [ "$HTTP_CODE" -ge 400 ]; then
-          echo "::error::Jules API returned HTTP $HTTP_CODE: $BODY"
-          exit 1
-        fi
-
-        echo "Session $SESSION_ID deleted successfully"
+      env:
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
+        JULES_SESSION_ID: ${{ inputs.session_id }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" delete

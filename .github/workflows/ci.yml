@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - name: Unit tests (vitest)
+        run: bun run test
+      - name: Biome
+        run: bun run lint
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
+      - name: actionlint (workflows and examples)
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color .github/workflows/ci.yml examples/autonomous-bug-fixer.yml examples/session-cleanup-on-merge.yml
+
+  test-bash-3:
+    # macOS ships bash 3.2 as /bin/bash; keep scripts/jules.sh compatible with it.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - name: Unit tests under /bin/bash
+        run: /bin/bash --version && bun run test
+        env:
+          JULES_TEST_BASH: /bin/bash
+
+  e2e:
+    # Runs the composite action itself (uses: ./) against a local mock Jules API.
+    runs-on: ubuntu-latest
+    env:
+      JULES_API_BASE_URL: http://127.0.0.1:8787/v1alpha
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Start mock Jules API
+        run: |
+          bun test/fixtures/mock-jules-server.ts 8787 > "$RUNNER_TEMP/mock-jules.log" 2>&1 &
+          for _ in $(seq 1 50); do
+            curl -fsS http://127.0.0.1:8787/healthz && exit 0
+            sleep 0.2
+          done
+          cat "$RUNNER_TEMP/mock-jules.log"
+          exit 1
+
+      - name: Create a session through the action
+        id: create
+        uses: ./
+        with:
+          prompt: Fix the e2e bug
+          title: E2E session
+          jules_api_key: e2e-test-key
+          starting_branch: main
+
+      - name: Delete the session through the action
+        id: delete
+        uses: ./
+        with:
+          mode: delete
+          session_id: ${{ steps.create.outputs.session_id }}
+          jules_api_key: e2e-test-key
+
+      - name: Assert outputs and recorded API calls
+        env:
+          SESSION_ID: ${{ steps.create.outputs.session_id }}
+          SESSION_NAME: ${{ steps.create.outputs.session_name }}
+          RESPONSE: ${{ steps.create.outputs.response }}
+        run: |
+          set -x
+          test "$SESSION_ID" = "16871897978654894041"
+          test "$SESSION_NAME" = "sessions/16871897978654894041"
+          echo "$RESPONSE" | jq -e '.name == "sessions/16871897978654894041"'
+          curl -fsS http://127.0.0.1:8787/__requests | tee "$RUNNER_TEMP/requests.json"
+          jq -e '
+            length == 2
+            and .[0].method == "POST" and .[0].path == "/v1alpha/sessions"
+            and .[0].headers["x-goog-api-key"] == "e2e-test-key"
+            and (.[0].body | fromjson | .title == "E2E session"
+              and .prompt == "Fix the e2e bug"
+              and .sourceContext.source == "sources/github/\(env.GITHUB_REPOSITORY)")
+            and .[1].method == "DELETE"
+            and .[1].path == "/v1alpha/sessions/16871897978654894041"
+          ' "$RUNNER_TEMP/requests.json"

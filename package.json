@@ -1,0 +1,14 @@
+{
+  "name": "jules-action",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check test vitest.config.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
+  }
+}
