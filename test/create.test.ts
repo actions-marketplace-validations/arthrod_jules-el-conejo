@@ -166,13 +166,38 @@ describe("jules.sh create", () => {
 });
 
 describe("jules.sh API base URL override", () => {
-  it("refuses hosts other than Jules or loopback", async () => {
-    const result = await runJules(
-      "create",
-      createEnv("https://example.com/v1alpha"),
-    );
+  it.each([
+    "https://example.com/v1alpha",
+    // userinfo: curl would read "localhost:1" as credentials and connect to example.com
+    "http://localhost:1@example.com/v1alpha",
+    "http://127.0.0.1:1@example.com/v1alpha",
+    "https://jules.googleapis.com.example.com/v1alpha",
+    "http://localhost/v1alpha",
+  ])("validate and create refuse %s", async (baseUrl) => {
+    const validate = await runJules("validate", {
+      JULES_API_BASE_URL: baseUrl,
+      JULES_MODE: "create",
+      JULES_PROMPT: "p",
+    });
+    const create = await runJules("create", createEnv(baseUrl));
 
-    expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::JULES_API_BASE_URL");
+    expect(validate.code).toBe(1);
+    expect(validate.stdout).toContain("::error::JULES_API_BASE_URL");
+    expect(create.code).toBe(1);
+    expect(create.stdout).toContain("::error::JULES_API_BASE_URL");
+  });
+
+  it.each([
+    "https://jules.googleapis.com/v1alpha",
+    "http://127.0.0.1:8787/v1alpha",
+    "http://localhost:8787",
+  ])("validate accepts %s", async (baseUrl) => {
+    const result = await runJules("validate", {
+      JULES_API_BASE_URL: baseUrl,
+      JULES_MODE: "create",
+      JULES_PROMPT: "p",
+    });
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
   });
 });

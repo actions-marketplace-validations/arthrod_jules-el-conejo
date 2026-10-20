@@ -8,8 +8,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Unit tests and linters
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -24,11 +29,16 @@ jobs:
       - name: ShellCheck
         run: shellcheck scripts/*.sh
       - name: actionlint (workflows and examples)
-        uses: docker://rhysd/actionlint:1.7.12
-        with:
-          args: -color .github/workflows/ci.yml examples/autonomous-bug-fixer.yml examples/session-cleanup-on-merge.yml
+        # actionlint 1.7.12 predates GitHub's self-repository syntax (uses: $/, July 2026),
+        # so that one message is ignored.
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color -ignore 'specifying action "\$/" in invalid format' \
+            .github/workflows/ci.yml examples/autonomous-bug-fixer.yml examples/session-cleanup-on-merge.yml
 
   test-bash-3:
+    name: Unit tests under macOS bash 3.2
     # macOS ships bash 3.2 as /bin/bash; keep scripts/jules.sh compatible with it.
     runs-on: macos-latest
     steps:
@@ -43,7 +53,10 @@ jobs:
           JULES_TEST_BASH: /bin/bash
 
   e2e:
-    # Runs the composite action itself (uses: ./) against a local mock Jules API.
+    name: End-to-end (uses the action against a mock Jules API)
+    # Runs the composite action itself against a local mock Jules API. `uses: $/`
+    # (self-repository syntax) loads the action from this commit, not from the
+    # workspace that the action's own checkout step rewrites.
     runs-on: ubuntu-latest
     env:
       JULES_API_BASE_URL: http://127.0.0.1:8787/v1alpha
@@ -64,7 +77,7 @@ jobs:
 
       - name: Create a session through the action
         id: create
-        uses: ./
+        uses: $/
         with:
           prompt: Fix the e2e bug
           title: E2E session
@@ -73,7 +86,7 @@ jobs:
 
       - name: Delete the session through the action
         id: delete
-        uses: ./
+        uses: $/
         with:
           mode: delete
           session_id: ${{ steps.create.outputs.session_id }}

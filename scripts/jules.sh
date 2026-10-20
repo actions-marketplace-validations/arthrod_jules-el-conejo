@@ -21,12 +21,14 @@ lowercase() {
 }
 
 # The override exists for tests; only the real API and loopback mocks are allowed,
-# so a stray environment variable cannot send the API key somewhere else.
+# so a stray environment variable cannot send the API key somewhere else. The
+# authority must end right after the host (or numeric port), which rules out
+# userinfo forms such as http://localhost:1@other.host/.
 check_base_url() {
-  case "$JULES_API_BASE_URL" in
-    https://jules.googleapis.com/* | http://127.0.0.1:* | http://localhost:*) ;;
-    *) error "JULES_API_BASE_URL must be https://jules.googleapis.com/... or a loopback URL, got: $JULES_API_BASE_URL" ;;
-  esac
+  local allowed='^(https://jules\.googleapis\.com|http://(127\.0\.0\.1|localhost):[0-9]+)(/|$)'
+  if ! [[ "$JULES_API_BASE_URL" =~ $allowed ]]; then
+    error "JULES_API_BASE_URL must be https://jules.googleapis.com/... or a loopback URL, got: $JULES_API_BASE_URL"
+  fi
 }
 
 # Runs curl, then splits the trailing status line written by -w into
@@ -42,6 +44,7 @@ api_request() {
 }
 
 cmd_validate() {
+  check_base_url
   local mode="${JULES_MODE:-}"
   if [ "$mode" = "create" ] && [ -z "${JULES_PROMPT:-}" ]; then
     error "prompt is required for create mode"
