@@ -1,3 +1,5 @@
+# 🐇🥕 Jules, el conejo: label an issue `bug` and Jules diagnoses and fixes it,
+# waiting for your plan approval in the Jules web app first.
 name: Auto-Fix Bugs
 
 on:
@@ -6,8 +8,8 @@ on:
 
 jobs:
   fix-bug:
-    # Only run when the 'bug' label is added
-    # Note you can also get Jules to trigger
+    # 🥕 Only run when the 'bug' label is added.
+    # 🐇 Note you can also get Jules to trigger
     # on repos by adding the 'jules' label,
     # but this example lets you manage the prompt
     # explicitly, add preamble, etc.
@@ -18,10 +20,11 @@ jobs:
       issues: read
     
     steps:
-      - name: Invoke Jules
-        # SECURITY: Only allow trusted users to trigger Jules
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 SECURITY: Only allow trusted users to trigger Jules.
+        # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
         if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
-        uses: google-labs-code/jules-invoke@v1
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             Please diagnose and fix the following bug:

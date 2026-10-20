@@ -1,3 +1,5 @@
+# 🐇🥕 Jules, el conejo: when a PR that Jules opened is merged, delete its Jules
+# session so finished work does not pile up in the Jules web app.
 name: Clean Up Jules Session on PR Merge
 
 on:
@@ -6,20 +8,20 @@ on:
 
 jobs:
   cleanup-session:
-    # Only run when a PR is merged (not just closed), and only for PRs from this
-    # repository: fork PRs get no secrets, and their body is not ours to trust.
+    # 🥕 Only run when a PR is merged (not just closed), and only for PRs from this
+    # repository: fork PRs get no secrets, and their body is not ours to trust. 🐇
     if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      # Jules PRs (AUTO_CREATE_PR) end with a footer that links the task, e.g.
+      # 🐇 Jules PRs (AUTO_CREATE_PR) end with a footer that links the task, e.g.
       # "PR created automatically by Jules for task
       # [16871897978654894041](https://jules.google.com/task/16871897978654894041)".
       # The number in that link is the session ID. Only that footer counts, with
       # the same ID in label and link: deleting is permanent, and a Jules link
-      # someone merely mentions in the PR text must not pick the session.
+      # someone merely mentions in the PR text must not pick the session. 🥕
       - name: Extract Jules session ID from PR
         id: extract
         uses: actions/github-script@v7
@@ -32,15 +34,15 @@ jobs:
               core.setOutput('found', 'true');
             } else {
               core.setOutput('found', 'false');
-              console.log('No Jules footer found in PR body');
+              console.log('🐇 No Jules footer found in PR body');
             }
 
-      # Deleting a session cannot be undone: its plan, activity and chat history
+      # 🥕 Deleting a session cannot be undone: its plan, activity and chat history
       # are gone from Jules once this step succeeds.
-      - name: Delete Jules session
+      - name: 🐇 Delete the Jules session with Jules, el conejo
         if: steps.extract.outputs.found == 'true'
-        # Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-action@main
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           mode: delete
           session_id: ${{ steps.extract.outputs.session_id }}

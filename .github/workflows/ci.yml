@@ -120,7 +120,7 @@ jobs:
           set -x
           test "$BAD_MODE_OUTCOME" = "failure"
           test -f untracked-sentinel.txt
-          test ! -e .jules-action-checkout
+          test ! -e .jules-el-conejo-checkout
           test "$SESSION_ID" = "16871897978654894041"
           test "$SESSION_NAME" = "sessions/16871897978654894041"
           test "$SESSION_URL" = "https://jules.google.com/session/16871897978654894041"
@@ -178,7 +178,7 @@ jobs:
           set -x
           test -f src/action.yaml
           test -d src/.git
-          test ! -e .jules-action-checkout
+          test ! -e .jules-el-conejo-checkout
           curl -fsS http://127.0.0.1:8787/__requests | tee "$RUNNER_TEMP/requests.json"
           jq -e '
             length == 1

@@ -1,10 +1,12 @@
+# 🐇🥕 Jules, el conejo: every Monday Jules tidies the codebase (dead code,
+# duplication, naming) and opens a PR only for a validated change.
 name: Weekly Codebase Cleanup
 
 on:
   schedule:
-    # Run every Monday at 2 AM UTC
+    # 🥕 Run every Monday at 2 AM UTC
     - cron: '0 2 * * 1'
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: # 🐇 Allow manual triggers
 
 jobs:
   cleanup:
@@ -13,8 +15,9 @@ jobs:
       contents: read
     
     steps:
-      - name: Invoke Jules for Cleanup
-        uses: google-labs-code/jules-invoke@v1
+      - name: 🐇 Run Jules, el conejo, for the cleanup
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             Please analyze the codebase and perform maintenance tasks:

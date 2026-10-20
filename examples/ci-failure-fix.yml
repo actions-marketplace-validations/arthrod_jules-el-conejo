@@ -1,13 +1,15 @@
+# 🐇🥕 Jules, el conejo: when your CI workflow fails, Jules looks at the failed
+# run and proposes a fix on the failing branch.
 name: Auto-Fix CI Failures
 
 on:
   workflow_run:
-    workflows: ["CI"]  # Replace with your CI workflow name
+    workflows: ["CI"]  # 🥕 Replace with your CI workflow name
     types: [completed]
 
 jobs:
   fix-failure:
-    # Only run when CI fails
+    # 🐇 Only run when CI fails
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     permissions:
@@ -25,11 +27,12 @@ jobs:
               repo: context.repo.repo,
               run_id: context.payload.workflow_run.id
             });
-            // Note: This returns a redirect URL to download logs
+            // 🥕 Note: This returns a redirect URL to download logs
             return logs.url;
       
-      - name: Invoke Jules to fix failure
-        uses: google-labs-code/jules-invoke@v1
+      - name: 🐇 Run Jules, el conejo, to fix the failure
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             The CI workflow "${{ github.event.workflow_run.name }}" has failed.

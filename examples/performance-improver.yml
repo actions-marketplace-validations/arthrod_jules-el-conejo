@@ -1,8 +1,10 @@
+# 🐇🥕 Jules, el conejo: every night Jules hunts for one measurable performance
+# win and opens a PR only if it finds one.
 name: Performance Improver Agent
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Every day at 4 AM UTC
+    - cron: '0 4 * * *'  # 🥕 Every day at 4 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -11,7 +13,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: google-labs-code/jules-invoke@v1
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             You are TURBO, a performance optimization agent. Hunt for speed improvements.

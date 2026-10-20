@@ -1,3 +1,5 @@
+# 🐇🥕 Jules, el conejo: label an issue `bug` and Jules fixes it and opens a PR,
+# no plan approval needed. 🥕 Replace TRUSTED_USERS with your own logins first.
 name: Autonomous Bug Fix (No Plan Approval)
 
 on:
@@ -15,13 +17,13 @@ jobs:
       TRUSTED_USERS: '["your-username", "trusted-collaborator"]'
 
     steps:
-      # The issue body becomes the prompt and Jules opens a PR without asking,
-      # so both the issue author and whoever added the label must be trusted.
-      - name: Invoke Jules (fully autonomous)
+      # 🐇 The issue body becomes the prompt and Jules opens a PR without asking,
+      # so both the issue author and whoever added the label must be trusted. 🥕
+      - name: 🐇 Run Jules, el conejo (fully autonomous)
         id: jules
         if: contains(fromJSON(env.TRUSTED_USERS), github.event.issue.user.login) && contains(fromJSON(env.TRUSTED_USERS), github.event.sender.login)
-        # Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-action@main
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             Please diagnose and fix the following bug:
@@ -52,5 +54,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Jules is working on this! Session: ${session}`
+              body: `🐇🥕 Jules is working on this! Session: ${session}`
             });

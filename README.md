@@ -1,9 +1,9 @@
 <div align="center">
 
-<img src="assets/jules-logo.png" alt="Jules" width="400">
+<img src="assets/jules-el-conejo.svg" alt="Jules, el conejo: a rabbit raising a carrot like Excalibur" width="480">
 
-## Jules Actions
-Invoke a powerful remote coding agent using GitHub Actions
+## 🐇 Jules, el conejo 🥕
+Send Jules, Google's remote coding agent, to work from any GitHub Actions workflow
 
 [Get Started](#-quick-start) • [Examples](./examples) • [API Docs](https://jules.google/docs/api/reference/)
 
@@ -13,38 +13,38 @@ Invoke a powerful remote coding agent using GitHub Actions
 </div>
 
 
-## What is Jules?
+## 🥕 What is Jules?
 
 **[Jules](https://jules.google)** is a remote AI coding agent from [Google Labs](https://labs.google) powered by Gemini 3 Pro. It works autonomously in a cloud VM—analyzing your codebase, implementing features, fixing bugs, and creating pull requests while you focus on what matters.
 
-**This action** lets you trigger Jules from any GitHub event: issues, pull requests, schedules, or workflow dispatches.
+**Jules, el conejo** 🐇 is this GitHub Action: it lets you trigger Jules from any GitHub event, such as issues, pull requests, schedules, or workflow dispatches.
 
-Check out our [example workflows](#🚀-example-workflows) for ideas on using Jules workflows to automatically fix bugs, improve performance, and more!
+Check out our [example workflows](#-example-workflows) for ideas on using Jules workflows to automatically fix bugs, improve performance, and more!
 
-## ✨ Quick Start
+## 🐇 Quick Start
 
-### 1. Get a Jules API Key
+### 🥕 1. Get a Jules API Key
 
-1. Authenticate with GitHub at [jules.google.com](https://jules.google.com)
-2. Generate an API key from your account settings
-3. See [API docs](https://jules.google/docs/api/reference/) for details
+1. 🐇 Authenticate with GitHub at [jules.google.com](https://jules.google.com)
+2. 🥕 Generate an API key from your account settings
+3. 🐇 See [API docs](https://jules.google/docs/api/reference/) for details
 
-### 2. Add to GitHub Secrets
+### 🥕 2. Add to GitHub Secrets
 
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `JULES_API_KEY`, Value: your key
+1. 🐇 Go to **Settings** → **Secrets and variables** → **Actions**
+2. 🥕 Click **New repository secret**
+3. 🐇 Name: `JULES_API_KEY`, Value: your key
 
-### 3. Create a Workflow
+### 🥕 3. Create a Workflow
 
-Create `.github/workflows/security-agent.yml`:
+🐇 Create `.github/workflows/security-agent.yml`:
 
 ```yaml
 name: Daily Security Scan
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Every day at 6 AM
+    - cron: '0 6 * * *'  # 🥕 Every day at 6 AM
   workflow_dispatch:
 
 jobs:
@@ -53,7 +53,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: google-labs-code/jules-invoke@v1
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             You are a security agent. Scan for vulnerabilities and fix them:
@@ -75,11 +77,11 @@ jobs:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
 ```
 
-Your repo now has a security agent hunting vulnerabilities daily! 🛡️
+Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇🥕
 
 ---
 
-## 📋 Inputs
+## 🥕 Inputs
 
 | Input | Description | Default |
 |-------|-------------|---------|
@@ -94,7 +96,7 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️
 | `mode` | `create` starts a new session; `delete` removes an existing one. | `create` |
 | `session_id` | Session to delete (delete mode), e.g. `16871897978654894041` or `sessions/16871897978654894041`. | — |
 
-Inputs are validated before anything else runs, and an invalid value fails the step with an error that names the input:
+🐇 Inputs are validated before anything else runs, and an invalid value fails the step with an error that names the input:
 
 - `mode` must be `create` or `delete` (case-insensitive).
 - `prompt` must not be empty in create mode.
@@ -103,21 +105,22 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 - `session_id` may contain only letters, digits, `_` and `-`, optionally prefixed with `sessions/`.
 - `jules_api_key` must not be empty.
 
-**Git context and checkout.**
+**🥕 Git context and checkout.**
 - Jules reads your repository from GitHub, so the action needs no checkout of its own. It uses git only for `include_last_commit` and `include_commit_log`.
 - If the workspace is already a git checkout, those commands run there, and the action never cleans it, moves its HEAD or touches its credentials. Check out with `fetch-depth: 20` or more if you want the whole 20-commit log in `include_commit_log`.
-- Otherwise the action checks out the repository into `.jules-action-checkout` and removes that directory when it finishes. If a directory of that name already exists, the step fails rather than overwrite it.
+- Otherwise the action checks out the repository into `.jules-el-conejo-checkout` and removes that directory when it finishes. If a directory of that name already exists, the step fails rather than overwrite it.
 - Without either flag, the action does not check anything out. Earlier versions checked out on every create, so if a later step relied on that side effect, add your own `actions/checkout` step.
 
-**Error handling.**
+**🐇 Error handling.**
 - Each attempt at an API call has a 10 s connect timeout and a 60 s overall timeout.
 - Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
 - Deleting a session retries transient errors (timeouts, 429, 5xx) up to 3 times, so in the worst case a delete takes about 4 minutes. A 404 is reported as a warning and treated as already deleted.
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
 - A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
+- Every error, warning and log line the action prints starts with `🥕🐇 Jules, el conejo:`, so you can spot them in a busy job log.
 
-## 📤 Outputs
+## 🐇 Outputs
 
 | Output | Description |
 |--------|-------------|
@@ -126,13 +129,13 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 | `session_url` | Link to the session in the Jules web app (create mode) |
 | `response` | The full JSON response from the Jules API (create mode) |
 
-In delete mode, `session_id` and `session_name` identify the deleted session, and `session_url` and `response` are empty.
+🥕 In delete mode, `session_id` and `session_name` identify the deleted session, and `session_url` and `response` are empty.
 
 ---
 
-## 🚀 Example Workflows
+## 🐇 Example Workflows
 
-Copy these into `.github/workflows/` and customize:
+🥕 Copy these into `.github/workflows/` and customize:
 
 | Example | Trigger | Description |
 |---------|---------|-------------|
@@ -144,27 +147,29 @@ Copy these into `.github/workflows/` and customize:
 | [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | Fully autonomous bug fix with session tracking |
 | [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | Delete Jules session when its PR is merged |
 
-See [examples/README.md](./examples/README.md) for detailed setup instructions.
+🐇 See [examples/README.md](./examples/README.md) for detailed setup instructions.
 
 ---
 
-## 💡 Writing Good Prompts
+## 🥕 Writing Good Prompts
 
 Jules excels when you give it **clear specifications** or **measurable targets** it can verify. This is especially powerful for scheduled workflows that run continuously.
 
-**Example: Weekly Performance Agent**
+**🐇 Example: Weekly Performance Agent**
 
 ```yaml
 name: Performance Improvement Agent
 on:
   schedule:
-    - cron: '0 3 * * 1'  # Every Monday at 3 AM
+    - cron: '0 3 * * 1'  # 🥕 Every Monday at 3 AM
 
 jobs:
   optimize:
     runs-on: ubuntu-latest
     steps:
-      - uses: google-labs-code/jules-invoke@v1
+      - name: 🐇 Run Jules, el conejo
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
             You are a performance improvement agent. Run our benchmark suite
@@ -182,9 +187,9 @@ jobs:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
 ```
 
-**Why this works:** Jules can run benchmarks, iterate on solutions, and verify its own success. Give Jules a target it can measure, and it becomes a continuous improvement loop.
+**🥕 Why this works:** Jules can run benchmarks, iterate on solutions, and verify its own success. Give Jules a target it can measure, and it becomes a continuous improvement loop.
 
-**More ideas for scheduled agents:**
+**🐇 More ideas for scheduled agents:**
 - Security audit agent (run `npm audit`, fix vulnerabilities)
 - Dependency updater (update deps, run tests, PR if green)
 - Docs updater agent (update docs based on recent changes)
@@ -195,40 +200,41 @@ jobs:
 
 ---
 
-## 🔐 Security
+## 🐇 Security
 
-**⚠️ Important:** Issue-triggered workflows can be exploited by untrusted users opening issues. Always restrict who can trigger Jules for sources like GitHub issues. For things like issues, oftentimes __anyone__ can create an issue so it can be handy to have an allowlist condition for
+**⚠️🥕 Important:** Issue-triggered workflows can be exploited by untrusted users opening issues. Always restrict who can trigger Jules for sources like GitHub issues. For things like issues, oftentimes __anyone__ can create an issue so it can be handy to have an allowlist condition for
 Jules triggering.
 
-**Add an allowlist condition to your step:**
+**🐇 Add an allowlist condition to your step:**
 
 ```yaml
-- name: Invoke Jules
-  # Only runs if user is in the allowlist
+- name: 🐇 Run Jules, el conejo
+  # 🥕 Only runs if user is in the allowlist
   if: ${{ contains(fromJSON('["trusted-user", "another-user"]'), github.event.issue.user.login) }}
-  uses: google-labs-code/jules-invoke@v1
+  uses: arthrod/jules-el-conejo@main
   with:
     prompt: ...
 ```
 
-**Best practices:**
+**🥕 Best practices:**
 - Never commit `JULES_API_KEY`—always use [GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/using-secrets-in-github-actions)
 - Treat Jules like any team member: review its PRs before merging
 
 ---
 
-## 📚 Resources
+## 🥕 Resources
 
 - **Jules Homepage:** [jules.google](https://jules.google)
 - **Jules Web App:** [jules.google.com](https://jules.google.com)
-- **API Documentation:** [jules.google/docs/api/reference](https://jules.google/docs/api/reference/)
+- **Jules API Documentation:** [jules.google/docs/api/reference](https://jules.google/docs/api/reference/)
 - **GitHub Actions:** [docs.github.com/actions](https://docs.github.com/actions)
+- **Jules, el conejo, issues:** [github.com/arthrod/jules-el-conejo/issues](https://github.com/arthrod/jules-el-conejo/issues)
 
 ---
 
-## Attribution
+## 🐇 Attribution
 
-If you find this useful, add the badge to your README:
+🥕 If you find this useful, add the badge to your README:
 
 ```markdown
 [![Built with Jules](https://img.shields.io/badge/Built%20with-Jules-715cd7?link=https://jules.google)](https://jules.google)
@@ -238,8 +244,8 @@ If you find this useful, add the badge to your README:
 
 <div align="center">
 
-**Built with ❤️ by Google**
+**Built with ❤️ by Google, carried the last mile by a conejo with a carrot 🐇🥕**
 
-[Jules](https://jules.google) • [API Docs](https://jules.google/docs/api/reference/) • [Report Issues](https://github.com/google-labs-code/jules-invoke/issues)
+[Jules](https://jules.google) • [API Docs](https://jules.google/docs/api/reference/) • [Report Issues](https://github.com/arthrod/jules-el-conejo/issues)
 
 </div>

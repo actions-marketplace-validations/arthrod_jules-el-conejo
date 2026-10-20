@@ -1,60 +1,60 @@
-name: Jules Invoke
-description: 'Invoke Jules, an AI-powered coding agent, to perform tasks on your codebase.'
+name: Jules, el conejo
+description: '🐇🥕 Jules, el conejo, hands tasks on your codebase to Jules, the AI coding agent from Google Labs.'
 
 branding:
   icon: 'code'
-  color: 'purple'
+  color: 'orange'
 
 inputs:
   prompt:
-    description: 'The prompt to pass to Jules (required for create mode)'
+    description: '🥕 The prompt to pass to Jules (required for create mode)'
     required: false
     default: ''
   title:
-    description: 'Optional title for the Jules session (auto-generated if omitted)'
+    description: '🐇 Optional title for the Jules session (auto-generated if omitted)'
     required: false
     default: ''
   include_last_commit:
-    description: 'Whether to pass content of the last commit (true/false)'
+    description: '🥕 Whether to pass content of the last commit (true/false)'
     default: false
   include_commit_log:
-    description: 'Whether to pass commit history (true/false)'
+    description: '🥕 Whether to pass commit history (true/false)'
     default: false
   starting_branch:
-    description: 'The branch for Jules to start from'
+    description: '🐇 The branch for Jules to start from'
     required: false
     default: 'main'
   require_plan_approval:
-    description: 'true makes Jules wait for plan approval; false (default) runs fully autonomously. Only true/false (any case) are accepted.'
+    description: '🐇 true makes Jules wait for plan approval; false (default) runs fully autonomously. Only true/false (any case) are accepted.'
     default: false
   automation_mode:
-    description: 'Jules AutomationMode: AUTO_CREATE_PR (default) opens a PR automatically; AUTOMATION_MODE_UNSPECIFIED creates no PR.'
+    description: '🥕 Jules AutomationMode: AUTO_CREATE_PR (default) opens a PR automatically; AUTOMATION_MODE_UNSPECIFIED creates no PR.'
     required: false
     default: 'AUTO_CREATE_PR'
   jules_api_key:
-    description: 'The Jules API key to use for authentication'
+    description: '🐇🔑 The Jules API key to use for authentication (pass it from secrets)'
     required: true
   mode:
-    description: 'create (default) starts a new session; delete removes an existing one. Case-insensitive; any other value is an error.'
+    description: '🥕 create (default) starts a new session; delete removes an existing one. Case-insensitive; any other value is an error.'
     required: false
     default: 'create'
   session_id:
-    description: 'Session to delete in delete mode, e.g. 16871897978654894041 or sessions/16871897978654894041'
+    description: '🐇 Session to delete in delete mode, e.g. 16871897978654894041 or sessions/16871897978654894041'
     required: false
     default: ''
 
 outputs:
   session_id:
-    description: 'The Jules session ID, e.g. 16871897978654894041 (create and delete modes)'
+    description: '🥕 The Jules session ID, e.g. 16871897978654894041 (create and delete modes)'
     value: ${{ steps.invoke.outputs.session_id || steps.delete.outputs.session_id }}
   session_name:
-    description: 'The full session resource name, e.g. sessions/16871897978654894041 (create and delete modes)'
+    description: '🥕 The full session resource name, e.g. sessions/16871897978654894041 (create and delete modes)'
     value: ${{ steps.invoke.outputs.session_name || steps.delete.outputs.session_name }}
   session_url:
-    description: 'Link to the session in the Jules web app (create mode)'
+    description: '🐇 Link to the session in the Jules web app (create mode)'
     value: ${{ steps.invoke.outputs.session_url }}
   response:
-    description: 'The full JSON response from the Jules API (create mode)'
+    description: '🥕 The full JSON response from the Jules API (create mode)'
     value: ${{ steps.invoke.outputs.response }}
 
 runs:
@@ -111,7 +111,7 @@ runs:
         JULES_SESSION_ID: ${{ inputs.session_id }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" delete
 
-    - name: Remove the action's checkout
+    - name: Remove the conejo's checkout
       id: cleanup
       if: ${{ always() && steps.validate.outputs.needs_checkout == 'true' }}
       shell: bash

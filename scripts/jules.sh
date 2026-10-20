@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shell logic for the Jules Invoke composite action (action.yaml).
+# Shell logic for Jules, el conejo, the composite action in action.yaml.
 #
 # Every value arrives through JULES_* environment variables that action.yaml sets
 # in each step's `env:` block. Nothing is interpolated into this script with
@@ -12,16 +12,26 @@ JULES_API_BASE_URL="${JULES_API_BASE_URL:-https://jules.googleapis.com/v1alpha}"
 WORK_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 # Where the action checks out the repository when the caller has not. See
 # cmd_validate for why it is never the caller's workspace itself.
-CHECKOUT_DIR=.jules-action-checkout
+CHECKOUT_DIR=.jules-el-conejo-checkout
 
+# Every annotation and log line the action prints is signed with this.
+BRAND='🥕🐇 Jules, el conejo:'
+
+# annotate <error|warning> <message...>
 # Messages quote input values, so escape them as workflow command data: an
 # unescaped newline would end the annotation and start a new command line.
-error() {
-  local message="$*"
+annotate() {
+  local level="$1" message
+  shift
+  message="$*"
   message=${message//"%"/%25}
   message=${message//$'\r'/%0D}
   message=${message//$'\n'/%0A}
-  echo "::error::$message"
+  echo "::$level::$BRAND $message"
+}
+
+error() {
+  annotate error "$@"
   exit 1
 }
 
@@ -350,10 +360,10 @@ cmd_delete() {
   prepare_auth
   api_request transient "$JULES_API_BASE_URL/$SESSION_NAME" -X DELETE
   case "$HTTP_CODE" in
-    2??) echo "Session $SESSION_NAME deleted successfully" ;;
+    2??) echo "$BRAND Session $SESSION_NAME deleted successfully" ;;
     # Deleting is about the end state; also covers a retry that lands after a
     # delete which succeeded but whose response was lost.
-    404) echo "::warning::Jules session $SESSION_NAME was not found; treating it as already deleted" ;;
+    404) annotate warning "Jules session $SESSION_NAME was not found; treating it as already deleted" ;;
     *) fail_http ;;
   esac
 
@@ -377,7 +387,7 @@ case "${1:-}" in
   delete) cmd_delete ;;
   cleanup) cmd_cleanup ;;
   *)
-    echo "usage: jules.sh validate|create|delete|cleanup" >&2
+    echo "$BRAND usage: jules.sh validate|create|delete|cleanup" >&2
     exit 2
     ;;
 esac
