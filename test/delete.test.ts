@@ -47,11 +47,11 @@ describe("jules.sh delete", () => {
 
   it("fails with an error annotation on HTTP errors", async () => {
     mock = await startMockJules(() =>
-      json(404, { error: { message: "not found" } }),
+      json(403, { error: { message: "forbidden" } }),
     );
     const result = await runJules("delete", deleteEnv(mock.baseUrl, "123"));
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::Jules API returned HTTP 404");
+    expect(result.stdout).toContain("::error::Jules API returned HTTP 403");
   });
 });

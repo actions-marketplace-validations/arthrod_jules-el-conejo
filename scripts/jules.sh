@@ -37,16 +37,65 @@ check_base_url() {
   fi
 }
 
-# Runs curl, then splits the trailing status line written by -w into
-# HTTP_CODE and the response body into BODY.
+# Writes the API key header to a private file so the key never shows up in
+# curl's argv (visible to other processes on shared runners).
+prepare_auth() {
+  KEY_HEADER_FILE="$WORK_DIR/jules_api_key_header.$$"
+  (umask 077 && printf 'X-Goog-Api-Key: %s\n' "$JULES_API_KEY" > "$KEY_HEADER_FILE")
+  trap 'rm -f "$KEY_HEADER_FILE"' EXIT
+}
+
+# api_request <retry-policy> <curl args...>
+# Sets HTTP_CODE and BODY. Policies:
+#   connect   - retry only when the request never left this machine (curl exit
+#               6: DNS, 7: connect). Used for create: POST /sessions is not
+#               idempotent, and a retry after a lost response would start a
+#               duplicate session and a duplicate PR.
+#   transient - let curl also retry timeouts, 408, 429 and 5xx. Idempotent
+#               calls only (delete).
 api_request() {
-  local response
-  response=$(curl -s -w "\n%{http_code}" "$@")
+  local policy="$1" response status attempt=1
+  shift
+  local -a retry=()
+  if [ "$policy" = "transient" ]; then
+    retry=(--retry 3 --retry-delay 1 --retry-connrefused)
+  fi
+
+  while :; do
+    status=0
+    response=$(curl -sS --connect-timeout 10 --max-time 60 \
+      ${retry[@]+"${retry[@]}"} \
+      -H @"$KEY_HEADER_FILE" \
+      -w '\n%{http_code}' "$@") || status=$?
+    if [ "$status" -eq 0 ]; then
+      break
+    fi
+    if [ "$policy" = "connect" ] && [ "$attempt" -lt 3 ] &&
+      { [ "$status" -eq 6 ] || [ "$status" -eq 7 ]; }; then
+      attempt=$((attempt + 1))
+      sleep 1
+      continue
+    fi
+    error "Could not reach the Jules API (curl exit $status)"
+  done
+
   HTTP_CODE=$(printf '%s\n' "$response" | tail -1)
   BODY=$(printf '%s\n' "$response" | sed '$d')
-  if [ "$HTTP_CODE" -ge 400 ]; then
-    error "Jules API returned HTTP $HTTP_CODE: $BODY"
+}
+
+# Fails with a bounded, single-line annotation; the full body goes to the log
+# with workflow commands disabled, since it is not ours.
+fail_http() {
+  local summary token
+  summary=$(printf '%s' "${BODY:0:1000}" | tr '\r\n' '  ')
+  if [ "${#BODY}" -gt 1000 ]; then
+    summary="$summary... (truncated, full body in the log)"
   fi
+  token="jules-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+  echo "::stop-commands::$token"
+  printf '%s\n' "$BODY"
+  echo "::$token::"
+  error "Jules API returned HTTP $HTTP_CODE: $summary"
 }
 
 # The parse_* helpers set globals instead of printing, because error() inside
@@ -197,17 +246,29 @@ cmd_create() {
   build_prompt "$prompt_file"
   build_payload "$prompt_file" > "$payload_file"
 
-  api_request "$JULES_API_BASE_URL/sessions" \
+  prepare_auth
+  api_request connect "$JULES_API_BASE_URL/sessions" \
     -X POST \
     -H "Content-Type: application/json" \
-    -H "X-Goog-Api-Key: $JULES_API_KEY" \
     -d @"$payload_file"
+  case "$HTTP_CODE" in
+    2??) ;;
+    *) fail_http ;;
+  esac
 
+  if [ -n "$BODY" ] && ! printf '%s' "$BODY" | jq -e 'type == "object"' > /dev/null 2>&1; then
+    error "Jules API returned a response that is not JSON: ${BODY:0:200}"
+  fi
+  [ -n "$BODY" ] || BODY='{}'
   echo "$BODY" | jq .
 
   local session_name session_id
-  session_name=$(echo "$BODY" | jq -r '.name // empty')
-  session_id=$(echo "$BODY" | jq -r '.id // empty')
+  session_name=$(printf '%s' "$BODY" | jq -r '.name // empty')
+  if [ -z "$session_name" ]; then
+    error "Jules API response did not include a session name"
+  fi
+  # `//` treats "" as present, so an empty id falls back explicitly.
+  session_id=$(printf '%s' "$BODY" | jq -r 'if (.id // "") != "" then .id else (.name | sub("^sessions/"; "")) end')
 
   {
     echo "session_id=$session_id"
@@ -224,11 +285,15 @@ cmd_delete() {
   require_api_key
   parse_session_id
 
-  api_request "$JULES_API_BASE_URL/$SESSION_NAME" \
-    -X DELETE \
-    -H "X-Goog-Api-Key: $JULES_API_KEY"
-
-  echo "Session $SESSION_NAME deleted successfully"
+  prepare_auth
+  api_request transient "$JULES_API_BASE_URL/$SESSION_NAME" -X DELETE
+  case "$HTTP_CODE" in
+    2??) echo "Session $SESSION_NAME deleted successfully" ;;
+    # Deleting is about the end state; also covers a retry that lands after a
+    # delete which succeeded but whose response was lost.
+    404) echo "::warning::Jules session $SESSION_NAME was not found; treating it as already deleted" ;;
+    *) fail_http ;;
+  esac
 }
 
 case "${1:-}" in

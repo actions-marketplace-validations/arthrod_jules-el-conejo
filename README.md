@@ -103,6 +103,13 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 - `session_id` may contain only letters, digits, `_` and `-`, optionally prefixed with `sessions/`.
 - `jules_api_key` must not be empty.
 
+**Error handling.**
+- Every API call has a 10 s connect timeout and a 60 s overall timeout.
+- Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR.
+- Deleting a session retries transient errors (timeouts, 429, 5xx). A 404 is reported as a warning and treated as already deleted.
+- Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
+- The API key is passed to curl through a private header file, never on the command line.
+
 ## 📤 Outputs
 
 | Output | Description |
