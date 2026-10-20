@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 import { chmod, readdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -144,7 +146,17 @@ describe("jules.sh HTTP handling", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::Jules API returned a response that is not JSON",
+      "::error::Jules API returned a response that is not a JSON object",
+    );
+  });
+
+  it("create calls a JSON null body what it is: not an object", async () => {
+    mock = await startMockJules(() => ({ status: 200, body: "null" }));
+    const result = await runJules("create", createEnv(mock.baseUrl));
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(
+      "::error::Jules API returned a response that is not a JSON object: null",
     );
   });
 
@@ -225,6 +237,31 @@ describe("jules.sh HTTP handling", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain("::error::Could not reach the Jules API");
+    }, 15_000);
+
+    it("create says a session may exist when the reply is lost", async () => {
+      const methods: string[] = [];
+      const server = createServer((req, res) => {
+        methods.push(req.method ?? "");
+        req.resume();
+        req.on("end", () => res.socket?.destroy());
+      });
+      await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+      const { port } = server.address() as AddressInfo;
+      try {
+        const result = await runJules(
+          "create",
+          createEnv(`http://127.0.0.1:${port}/v1alpha`),
+        );
+
+        expect(result.code).toBe(1);
+        expect(result.stdout).toContain(
+          "::error::The Jules API request failed (curl exit 52) and may already have reached Jules",
+        );
+        expect(methods).toEqual(["POST"]);
+      } finally {
+        await new Promise((done) => server.close(done));
+      }
     }, 15_000);
 
     it("delete reports an unreachable API", async () => {

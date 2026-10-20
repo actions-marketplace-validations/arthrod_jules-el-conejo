@@ -93,6 +93,11 @@ api_request() {
       sleep 1
       continue
     fi
+    # Any other create failure (timeout, TLS, a reply cut off after the POST
+    # went out) may have started a session, so say so instead of "unreachable".
+    if [ "$policy" = "connect" ] && [ "$status" -ne 6 ] && [ "$status" -ne 7 ]; then
+      error "The Jules API request failed (curl exit $status) and may already have reached Jules. Check https://jules.google.com for a new session before re-running."
+    fi
     error "Could not reach the Jules API (curl exit $status)"
   done
 
@@ -277,7 +282,7 @@ cmd_create() {
   esac
 
   if [ -n "$BODY" ] && ! printf '%s' "$BODY" | jq -e 'type == "object"' > /dev/null 2>&1; then
-    error "Jules API returned a response that is not JSON: ${BODY:0:200}"
+    error "Jules API returned a response that is not a JSON object: ${BODY:0:200}"
   fi
   [ -n "$BODY" ] || BODY='{}'
   echo "$BODY" | jq .
