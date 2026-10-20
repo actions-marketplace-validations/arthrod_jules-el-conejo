@@ -86,13 +86,21 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️
 | `prompt` | The task for Jules to perform. **Required for create mode.** | — |
 | `jules_api_key` | **Required.** Your Jules API key (use secrets). | — |
 | `starting_branch` | Branch for Jules to start from. | `main` |
-| `include_last_commit` | Include the last commit's diff in context. | `false` |
-| `include_commit_log` | Include recent commit history in context. | `false` |
+| `include_last_commit` | Include the last commit's diff in context (`true`/`false`). | `false` |
+| `include_commit_log` | Include recent commit history in context (`true`/`false`). | `false` |
 | `title` | Optional title for the Jules session. Auto-generated if omitted. | — |
-| `require_plan_approval` | Whether Jules waits for plan approval before executing. Set `false` for fully autonomous operation. | `false` |
-| `automation_mode` | Automation mode for the session. `AUTO_CREATE_PR` makes Jules create a PR automatically. | `AUTO_CREATE_PR` |
-| `mode` | Action mode: `create` to start a new session, `delete` to remove an existing session. | `create` |
-| `session_id` | Session ID for delete mode (e.g., `ses_abc123`). | — |
+| `require_plan_approval` | `true` makes Jules wait for plan approval (approve it in the Jules web app); `false` runs fully autonomously. | `false` |
+| `automation_mode` | Jules `AutomationMode`: `AUTO_CREATE_PR` opens a PR automatically; `AUTOMATION_MODE_UNSPECIFIED` creates no PR. | `AUTO_CREATE_PR` |
+| `mode` | `create` starts a new session; `delete` removes an existing one. | `create` |
+| `session_id` | Session to delete (delete mode), e.g. `16871897978654894041` or `sessions/16871897978654894041`. | — |
+
+Inputs are validated before anything else runs, and an invalid value fails the step with an error that names the input:
+
+- `mode` must be `create` or `delete` (case-insensitive).
+- Boolean inputs accept `true` or `false` (case-insensitive). Anything else, such as `yes` or `1`, is an error rather than being read as `false`.
+- `automation_mode` must be an `AutomationMode` name (upper case).
+- `session_id` may contain only letters, digits, `_` and `-`, optionally prefixed with `sessions/`.
+- `jules_api_key` must not be empty.
 
 ## 📤 Outputs
 

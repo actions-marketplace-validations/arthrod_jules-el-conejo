@@ -30,6 +30,7 @@ describe("jules.sh validate", () => {
     const result = await runJules("validate", {
       JULES_MODE: "create",
       JULES_PROMPT: "do it",
+      JULES_API_KEY: "k",
     });
 
     expect(result.code, result.stdout + result.stderr).toBe(0);
@@ -39,6 +40,7 @@ describe("jules.sh validate", () => {
     const result = await runJules("validate", {
       JULES_MODE: "delete",
       JULES_SESSION_ID: "123",
+      JULES_API_KEY: "k",
     });
 
     expect(result.code, result.stdout + result.stderr).toBe(0);

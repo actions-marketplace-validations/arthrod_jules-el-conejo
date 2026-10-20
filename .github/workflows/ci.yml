@@ -75,10 +75,20 @@ jobs:
           cat "$RUNNER_TEMP/mock-jules.log"
           exit 1
 
+      - name: An invalid mode fails the action before any API call
+        id: bad_mode
+        continue-on-error: true
+        uses: $/
+        with:
+          mode: remove
+          jules_api_key: e2e-test-key
+
       - name: Create a session through the action
         id: create
         uses: $/
         with:
+          # Mixed case on purpose: validate normalizes it for the later steps.
+          mode: Create
           prompt: Fix the e2e bug
           title: E2E session
           jules_api_key: e2e-test-key
@@ -97,8 +107,10 @@ jobs:
           SESSION_ID: ${{ steps.create.outputs.session_id }}
           SESSION_NAME: ${{ steps.create.outputs.session_name }}
           RESPONSE: ${{ steps.create.outputs.response }}
+          BAD_MODE_OUTCOME: ${{ steps.bad_mode.outcome }}
         run: |
           set -x
+          test "$BAD_MODE_OUTCOME" = "failure"
           test "$SESSION_ID" = "16871897978654894041"
           test "$SESSION_NAME" = "sessions/16871897978654894041"
           echo "$RESPONSE" | jq -e '.name == "sessions/16871897978654894041"'

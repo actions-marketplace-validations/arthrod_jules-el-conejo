@@ -196,6 +196,7 @@ describe("jules.sh API base URL override", () => {
       JULES_API_BASE_URL: baseUrl,
       JULES_MODE: "create",
       JULES_PROMPT: "p",
+      JULES_API_KEY: "k",
     });
 
     expect(result.code, result.stdout + result.stderr).toBe(0);

@@ -84,3 +84,37 @@ describe("action.yaml wiring", () => {
     expect(keyed.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("action.yaml uses validated values", () => {
+  const byId = (id: string) => steps.find((step) => step.id === id);
+
+  it("gates checkout, create and delete on the normalized mode", () => {
+    const checkout = steps.find((step) =>
+      step.uses?.startsWith("actions/checkout@"),
+    );
+    expect(byId("validate")).toBeDefined();
+    expect(checkout?.if).toContain("steps.validate.outputs.mode == 'create'");
+    expect(byId("invoke")?.if).toContain(
+      "steps.validate.outputs.mode == 'create'",
+    );
+    expect(byId("delete")?.if).toContain(
+      "steps.validate.outputs.mode == 'delete'",
+    );
+  });
+
+  it("feeds create the normalized booleans and automation mode", () => {
+    const env = byId("invoke")?.env ?? {};
+    expect(env.JULES_REQUIRE_PLAN_APPROVAL).toContain(
+      "steps.validate.outputs.require_plan_approval",
+    );
+    expect(env.JULES_INCLUDE_LAST_COMMIT).toContain(
+      "steps.validate.outputs.include_last_commit",
+    );
+    expect(env.JULES_INCLUDE_COMMIT_LOG).toContain(
+      "steps.validate.outputs.include_commit_log",
+    );
+    expect(env.JULES_AUTOMATION_MODE).toContain(
+      "steps.validate.outputs.automation_mode",
+    );
+  });
+});

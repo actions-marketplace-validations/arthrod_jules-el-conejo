@@ -43,22 +43,97 @@ api_request() {
   fi
 }
 
-cmd_validate() {
-  check_base_url
-  local mode="${JULES_MODE:-}"
-  if [ "$mode" = "create" ] && [ -z "${JULES_PROMPT:-}" ]; then
-    error "prompt is required for create mode"
+# The parse_* helpers set globals instead of printing, because error() inside
+# $(...) would only exit the subshell and its ::error:: line would be captured.
+
+# Sets MODE to create or delete; GitHub's own `==` is case-insensitive, so
+# `Create` keeps working.
+parse_mode() {
+  case "$(lowercase "${JULES_MODE:-}")" in
+    create) MODE=create ;;
+    delete) MODE=delete ;;
+    *) error "mode must be \"create\" or \"delete\", got: ${JULES_MODE:-}" ;;
+  esac
+}
+
+# Sets REPLY to true or false. Empty means false; anything else fails closed
+# rather than silently turning, say, plan approval off.
+parse_bool() {
+  case "$(lowercase "$2")" in
+    true) REPLY=true ;;
+    false | "") REPLY=false ;;
+    *) error "$1 must be true or false, got: $2" ;;
+  esac
+}
+
+# Sets REQUIRE_PLAN_APPROVAL, INCLUDE_LAST_COMMIT, INCLUDE_COMMIT_LOG and
+# AUTOMATION_MODE. The API rejects unknown AutomationMode names itself, so only
+# the enum-name shape is checked here.
+parse_create_options() {
+  parse_bool require_plan_approval "${JULES_REQUIRE_PLAN_APPROVAL:-}"
+  REQUIRE_PLAN_APPROVAL=$REPLY
+  parse_bool include_last_commit "${JULES_INCLUDE_LAST_COMMIT:-}"
+  INCLUDE_LAST_COMMIT=$REPLY
+  parse_bool include_commit_log "${JULES_INCLUDE_COMMIT_LOG:-}"
+  INCLUDE_COMMIT_LOG=$REPLY
+
+  AUTOMATION_MODE="${JULES_AUTOMATION_MODE:-AUTO_CREATE_PR}"
+  local enum_name='^[A-Z][A-Z0-9_]*$'
+  if ! [[ "$AUTOMATION_MODE" =~ $enum_name ]]; then
+    error "automation_mode must be an AutomationMode name such as AUTO_CREATE_PR or AUTOMATION_MODE_UNSPECIFIED, got: $AUTOMATION_MODE"
   fi
-  if [ "$mode" = "delete" ] && [ -z "${JULES_SESSION_ID:-}" ]; then
+}
+
+# Sets SESSION_ID (bare id) and SESSION_NAME (sessions/<id>).
+parse_session_id() {
+  local value="${JULES_SESSION_ID:-}" pattern='^(sessions/)?[A-Za-z0-9_-]+$'
+  if [ -z "$value" ]; then
     error "session_id is required for delete mode"
   fi
+  if ! [[ "$value" =~ $pattern ]]; then
+    error "session_id must look like 1234567890 or sessions/1234567890, got: $value"
+  fi
+  SESSION_ID="${value#sessions/}"
+  SESSION_NAME="sessions/$SESSION_ID"
+}
+
+require_api_key() {
+  if [ -z "${JULES_API_KEY:-}" ]; then
+    error "jules_api_key is required"
+  fi
+}
+
+cmd_validate() {
+  check_base_url
+  parse_mode
+  if [ "$MODE" = "create" ]; then
+    if [ -z "${JULES_PROMPT:-}" ]; then
+      error "prompt is required for create mode"
+    fi
+  else
+    parse_session_id
+  fi
+  require_api_key
+  parse_create_options
+
+  {
+    echo "mode=$MODE"
+    echo "require_plan_approval=$REQUIRE_PLAN_APPROVAL"
+    echo "include_last_commit=$INCLUDE_LAST_COMMIT"
+    echo "include_commit_log=$INCLUDE_COMMIT_LOG"
+    echo "automation_mode=$AUTOMATION_MODE"
+    if [ "$MODE" = "delete" ]; then
+      echo "session_id=$SESSION_ID"
+      echo "session_name=$SESSION_NAME"
+    fi
+  } >> "$GITHUB_OUTPUT"
 }
 
 build_prompt() {
   local prompt_file="$1"
   printf '%s\n' "${JULES_PROMPT:-}" > "$prompt_file"
 
-  if [ "$(lowercase "${JULES_INCLUDE_LAST_COMMIT:-false}")" = "true" ]; then
+  if [ "$INCLUDE_LAST_COMMIT" = "true" ]; then
     {
       # shellcheck disable=SC2016 # literal backticks
       printf '\n\nContent of the latest commit (in the format of `git show`):\n'
@@ -68,7 +143,7 @@ build_prompt() {
     } >> "$prompt_file"
   fi
 
-  if [ "$(lowercase "${JULES_INCLUDE_COMMIT_LOG:-false}")" = "true" ]; then
+  if [ "$INCLUDE_COMMIT_LOG" = "true" ]; then
     {
       # shellcheck disable=SC2016 # literal backticks
       printf '\n\nLog of the last 20 commits (in the format of `git log --stat`):\n'
@@ -80,10 +155,7 @@ build_prompt() {
 }
 
 build_payload() {
-  local prompt_file="$1" plan_approval=false
-  if [ "${JULES_REQUIRE_PLAN_APPROVAL:-false}" = "true" ]; then
-    plan_approval=true
-  fi
+  local prompt_file="$1"
 
   # --rawfile keeps large prompts (git show/log) out of argv; trailing newlines
   # are trimmed to match the previous "$(cat prompt.txt)" behaviour.
@@ -92,8 +164,8 @@ build_payload() {
     --arg title "${JULES_TITLE:-}" \
     --arg starting_branch "${JULES_STARTING_BRANCH:-}" \
     --arg repository "${JULES_REPOSITORY:-}" \
-    --argjson require_plan_approval "$plan_approval" \
-    --arg automation_mode "${JULES_AUTOMATION_MODE:-}" \
+    --argjson require_plan_approval "$REQUIRE_PLAN_APPROVAL" \
+    --arg automation_mode "$AUTOMATION_MODE" \
     '{
       prompt: ($prompt | sub("\n+$"; "")),
       sourceContext: {
@@ -107,6 +179,8 @@ build_payload() {
 
 cmd_create() {
   check_base_url
+  require_api_key
+  parse_create_options
   local prompt_file="$WORK_DIR/jules_prompt.txt"
   local payload_file="$WORK_DIR/jules_payload.json"
   build_prompt "$prompt_file"
@@ -115,7 +189,7 @@ cmd_create() {
   api_request "$JULES_API_BASE_URL/sessions" \
     -X POST \
     -H "Content-Type: application/json" \
-    -H "X-Goog-Api-Key: ${JULES_API_KEY:-}" \
+    -H "X-Goog-Api-Key: $JULES_API_KEY" \
     -d @"$payload_file"
 
   echo "$BODY" | jq .
@@ -136,17 +210,14 @@ cmd_create() {
 
 cmd_delete() {
   check_base_url
-  local session_name="${JULES_SESSION_ID:-}"
-  # Normalize: ensure it has the sessions/ prefix
-  if [[ "$session_name" != sessions/* ]]; then
-    session_name="sessions/$session_name"
-  fi
+  require_api_key
+  parse_session_id
 
-  api_request "$JULES_API_BASE_URL/$session_name" \
+  api_request "$JULES_API_BASE_URL/$SESSION_NAME" \
     -X DELETE \
-    -H "X-Goog-Api-Key: ${JULES_API_KEY:-}"
+    -H "X-Goog-Api-Key: $JULES_API_KEY"
 
-  echo "Session $session_name deleted successfully"
+  echo "Session $SESSION_NAME deleted successfully"
 }
 
 case "${1:-}" in

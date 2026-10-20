@@ -15,31 +15,31 @@ inputs:
     required: false
     default: ''
   include_last_commit:
-    description: 'Whether to pass content of the last commit'
+    description: 'Whether to pass content of the last commit (true/false)'
     default: false
   include_commit_log:
-    description: 'Whether to pass commit history'
+    description: 'Whether to pass commit history (true/false)'
     default: false
   starting_branch:
     description: 'The branch for Jules to start from'
     required: false
     default: 'main'
   require_plan_approval:
-    description: 'Whether Jules should wait for plan approval before executing. Set to false for fully autonomous operation.'
+    description: 'true makes Jules wait for plan approval; false (default) runs fully autonomously. Only true/false (any case) are accepted.'
     default: false
   automation_mode:
-    description: 'Automation mode for the session. AUTO_CREATE_PR makes Jules create a PR automatically.'
+    description: 'Jules AutomationMode: AUTO_CREATE_PR (default) opens a PR automatically; AUTOMATION_MODE_UNSPECIFIED creates no PR.'
     required: false
     default: 'AUTO_CREATE_PR'
   jules_api_key:
     description: 'The Jules API key to use for authentication'
     required: true
   mode:
-    description: 'Action mode: create (default) to start a new session, delete to remove an existing session'
+    description: 'create (default) starts a new session; delete removes an existing one. Case-insensitive; any other value is an error.'
     required: false
     default: 'create'
   session_id:
-    description: 'Session ID for delete mode (e.g., sessions/ses_abc123 or just ses_abc123)'
+    description: 'Session to delete in delete mode, e.g. 16871897978654894041 or sessions/16871897978654894041'
     required: false
     default: ''
 
@@ -58,23 +58,30 @@ runs:
   using: "composite"
   steps:
     # All values reach scripts/jules.sh through env; no ${{ }} inside run blocks.
+    # Later steps use the normalized values that validate writes as outputs.
     - name: Validate inputs
+      id: validate
       shell: bash
       env:
+        JULES_API_KEY: ${{ inputs.jules_api_key }}
         JULES_MODE: ${{ inputs.mode }}
         JULES_PROMPT: ${{ inputs.prompt }}
         JULES_SESSION_ID: ${{ inputs.session_id }}
+        JULES_REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
+        JULES_AUTOMATION_MODE: ${{ inputs.automation_mode }}
+        JULES_INCLUDE_LAST_COMMIT: ${{ inputs.include_last_commit }}
+        JULES_INCLUDE_COMMIT_LOG: ${{ inputs.include_commit_log }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" validate
 
     - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      if: ${{ inputs.mode == 'create' }}
+      if: ${{ steps.validate.outputs.mode == 'create' }}
       with:
         fetch-depth: 30
         persist-credentials: false
 
     - name: Create Jules session
       id: invoke
-      if: ${{ inputs.mode == 'create' }}
+      if: ${{ steps.validate.outputs.mode == 'create' }}
       shell: bash
       env:
         JULES_API_KEY: ${{ inputs.jules_api_key }}
@@ -82,15 +89,15 @@ runs:
         JULES_TITLE: ${{ inputs.title }}
         JULES_STARTING_BRANCH: ${{ inputs.starting_branch }}
         JULES_REPOSITORY: ${{ github.repository }}
-        JULES_REQUIRE_PLAN_APPROVAL: ${{ inputs.require_plan_approval }}
-        JULES_AUTOMATION_MODE: ${{ inputs.automation_mode }}
-        JULES_INCLUDE_LAST_COMMIT: ${{ inputs.include_last_commit }}
-        JULES_INCLUDE_COMMIT_LOG: ${{ inputs.include_commit_log }}
+        JULES_REQUIRE_PLAN_APPROVAL: ${{ steps.validate.outputs.require_plan_approval }}
+        JULES_AUTOMATION_MODE: ${{ steps.validate.outputs.automation_mode }}
+        JULES_INCLUDE_LAST_COMMIT: ${{ steps.validate.outputs.include_last_commit }}
+        JULES_INCLUDE_COMMIT_LOG: ${{ steps.validate.outputs.include_commit_log }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" create
 
     - name: Delete Jules session
       id: delete
-      if: ${{ inputs.mode == 'delete' }}
+      if: ${{ steps.validate.outputs.mode == 'delete' }}
       shell: bash
       env:
         JULES_API_KEY: ${{ inputs.jules_api_key }}
