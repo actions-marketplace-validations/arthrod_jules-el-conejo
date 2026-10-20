@@ -5,11 +5,13 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ERROR,
   json,
   type MockJules,
   makeScratchDir,
   runJules,
   startMockJules,
+  WARNING,
 } from "./helpers";
 
 let mock: MockJules | undefined;
@@ -75,7 +77,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("create", createEnv(mock.baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Jules API returned HTTP 302");
+      expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 302`);
     });
 
     it("delete fails on HTTP 302 with an error annotation", async () => {
@@ -83,7 +85,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("delete", deleteEnv(mock.baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Jules API returned HTTP 302");
+      expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 302`);
     });
 
     it("create fails on HTTP 400 with an error annotation", async () => {
@@ -94,7 +96,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("create", createEnv(mock.baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Jules API returned HTTP 400");
+      expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 400`);
     });
 
     it("delete fails on HTTP 403 with an error annotation", async () => {
@@ -105,7 +107,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("delete", deleteEnv(mock.baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Jules API returned HTTP 403");
+      expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 403`);
     });
   });
 
@@ -117,7 +119,7 @@ describe("jules.sh HTTP handling", () => {
 
     expect(result.code, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain(
-      "::warning::Jules session sessions/16871897978654894041 was not found; treating it as already deleted",
+      `${WARNING}Jules session sessions/16871897978654894041 was not found; treating it as already deleted`,
     );
   });
 
@@ -131,7 +133,7 @@ describe("jules.sh HTTP handling", () => {
     expect(result.code).toBe(1);
     const errorLine = result.stdout
       .split("\n")
-      .find((line) => line.startsWith("::error::"));
+      .find((line) => line.startsWith(ERROR));
     expect(errorLine).toBeDefined();
     expect(errorLine?.length).toBeLessThanOrEqual(1200);
   });
@@ -146,7 +148,7 @@ describe("jules.sh HTTP handling", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::Jules API returned a response that is not a JSON object",
+      `${ERROR}Jules API returned a response that is not a JSON object`,
     );
   });
 
@@ -156,7 +158,7 @@ describe("jules.sh HTTP handling", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::Jules API returned a response that is not a JSON object: null",
+      `${ERROR}Jules API returned a response that is not a JSON object: null`,
     );
   });
 
@@ -167,7 +169,7 @@ describe("jules.sh HTTP handling", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain(
-        "::error::Jules API response did not include a session name",
+        `${ERROR}Jules API response did not include a session name`,
       );
       expect(result.outputs.session_id).toBeUndefined();
     });
@@ -178,7 +180,7 @@ describe("jules.sh HTTP handling", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain(
-        "::error::Jules API response did not include a session name",
+        `${ERROR}Jules API response did not include a session name`,
       );
       expect(result.outputs.session_id).toBeUndefined();
     });
@@ -212,7 +214,7 @@ describe("jules.sh HTTP handling", () => {
     const result = await runJules("create", createEnv(mock.baseUrl));
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::Jules API returned HTTP 503");
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 503`);
     expect(mock.requests).toHaveLength(1);
   }, 15_000);
 
@@ -236,7 +238,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("create", createEnv(baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Could not reach the Jules API");
+      expect(result.stdout).toContain(`${ERROR}Could not reach the Jules API`);
     }, 15_000);
 
     it("create says a session may exist when the reply is lost", async () => {
@@ -256,7 +258,7 @@ describe("jules.sh HTTP handling", () => {
 
         expect(result.code).toBe(1);
         expect(result.stdout).toContain(
-          "::error::The Jules API request failed (curl exit 52) and may already have reached Jules",
+          `${ERROR}The Jules API request failed (curl exit 52) and may already have reached Jules`,
         );
         expect(methods).toEqual(["POST"]);
       } finally {
@@ -271,7 +273,7 @@ describe("jules.sh HTTP handling", () => {
       const result = await runJules("delete", deleteEnv(baseUrl));
 
       expect(result.code).toBe(1);
-      expect(result.stdout).toContain("::error::Could not reach the Jules API");
+      expect(result.stdout).toContain(`${ERROR}Could not reach the Jules API`);
     }, 15_000);
   });
 

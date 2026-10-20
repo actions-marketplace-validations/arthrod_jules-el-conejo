@@ -1,5 +1,5 @@
 {
-  "name": "jules-action",
+  "name": "jules-el-conejo",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
+    "fast-xml-parser": "^5.11.2",
     "vitest": "^5.0.5",
     "yaml": "^2.9.1"
   }

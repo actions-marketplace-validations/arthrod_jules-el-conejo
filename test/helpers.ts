@@ -12,6 +12,10 @@ import { join, resolve } from "node:path";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const SCRIPT = join(REPO_ROOT, "scripts", "jules.sh");
+// Every annotation and log line from jules.sh starts with this signature.
+export const BRAND = "🥕🐇 Jules, el conejo:";
+export const ERROR = `::error::${BRAND} `;
+export const WARNING = `::warning::${BRAND} `;
 // Lets the suite run under a specific bash (e.g. macOS /bin/bash 3.2).
 const BASH = process.env.JULES_TEST_BASH ?? "bash";
 

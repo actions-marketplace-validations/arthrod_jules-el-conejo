@@ -77,8 +77,8 @@ const runExtract = async (
 const julesActionStep = (job: Job): Step =>
   findStep(
     job,
-    (step) => step.uses?.includes("jules-action") ?? false,
-    "uses a jules-action",
+    (step) => step.uses?.includes("jules-el-conejo") ?? false,
+    "uses arthrod/jules-el-conejo",
   );
 
 describe("examples/session-cleanup-on-merge.yml", () => {
@@ -145,8 +145,10 @@ describe("examples/session-cleanup-on-merge.yml", () => {
     );
   });
 
-  it("deletes the session through arthrod/jules-action", () => {
-    expect(julesActionStep(cleanupJob).uses).toContain("arthrod/jules-action@");
+  it("deletes the session through arthrod/jules-el-conejo", () => {
+    expect(julesActionStep(cleanupJob).uses).toContain(
+      "arthrod/jules-el-conejo@",
+    );
   });
 
   it("passes mode: delete to the delete step", () => {
@@ -183,14 +185,14 @@ describe("examples/autonomous-bug-fixer.yml", () => {
     }
   });
 
-  it("invokes arthrod/jules-action", () => {
+  it("invokes arthrod/jules-el-conejo", () => {
     const julesStep = findStep(
       fixerJob,
       (step) => step.id === "jules",
       "has id jules",
     );
 
-    expect(julesStep.uses).toContain("arthrod/jules-action@");
+    expect(julesStep.uses).toContain("arthrod/jules-el-conejo@");
   });
 
   it("feeds the comment step the session URL through env", () => {

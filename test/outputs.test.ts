@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
+  ERROR,
   json,
   type MockJules,
   REPO_ROOT,
@@ -253,7 +254,7 @@ describe("jules.sh create checks response fields before writing outputs", () => 
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::Jules API returned an unexpected session",
+      `${ERROR}Jules API returned an unexpected session`,
     );
     expect(result.outputs).toEqual({});
   });

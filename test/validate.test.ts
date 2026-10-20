@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runJules } from "./helpers";
+import { ERROR, runJules } from "./helpers";
 
 describe("jules.sh validate", () => {
   it("requires a prompt in create mode", async () => {
@@ -10,7 +10,7 @@ describe("jules.sh validate", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::prompt is required for create mode",
+      `${ERROR}prompt is required for create mode`,
     );
   });
 
@@ -22,7 +22,7 @@ describe("jules.sh validate", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::session_id is required for delete mode",
+      `${ERROR}session_id is required for delete mode`,
     );
   });
 

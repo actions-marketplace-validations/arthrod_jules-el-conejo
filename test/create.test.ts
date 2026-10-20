@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ERROR,
   json,
   type MockJules,
   makeGitRepo,
@@ -148,7 +149,7 @@ describe("jules.sh create", () => {
     const result = await runJules("create", createEnv(mock.baseUrl));
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::Jules API returned HTTP 400");
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 400`);
     expect(result.outputs.session_id).toBeUndefined();
   });
 
@@ -182,9 +183,9 @@ describe("jules.sh API base URL override", () => {
     const create = await runJules("create", createEnv(baseUrl));
 
     expect(validate.code).toBe(1);
-    expect(validate.stdout).toContain("::error::JULES_API_BASE_URL");
+    expect(validate.stdout).toContain(`${ERROR}JULES_API_BASE_URL`);
     expect(create.code).toBe(1);
-    expect(create.stdout).toContain("::error::JULES_API_BASE_URL");
+    expect(create.stdout).toContain(`${ERROR}JULES_API_BASE_URL`);
   });
 
   it.each([

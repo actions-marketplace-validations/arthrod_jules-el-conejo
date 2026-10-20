@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { json, type MockJules, runJules, startMockJules } from "./helpers";
+import {
+  BRAND,
+  ERROR,
+  json,
+  type MockJules,
+  runJules,
+  startMockJules,
+} from "./helpers";
 
 let mock: MockJules | undefined;
 afterEach(async () => {
@@ -30,7 +37,7 @@ describe("jules.sh delete", () => {
     );
     expect(mock.requests[0].headers["x-goog-api-key"]).toBe("test-key");
     expect(result.stdout).toContain(
-      "Session sessions/16871897978654894041 deleted successfully",
+      `${BRAND} Session sessions/16871897978654894041 deleted successfully`,
     );
   });
 
@@ -52,6 +59,6 @@ describe("jules.sh delete", () => {
     const result = await runJules("delete", deleteEnv(mock.baseUrl, "123"));
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::Jules API returned HTTP 403");
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 403`);
   });
 });

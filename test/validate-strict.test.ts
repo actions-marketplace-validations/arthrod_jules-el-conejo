@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { type MockJules, runJules, startMockJules } from "./helpers";
+import { ERROR, type MockJules, runJules, startMockJules } from "./helpers";
 
 let mock: MockJules | undefined;
 afterEach(async () => {
@@ -61,7 +61,7 @@ describe("validate: mode", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::session_id is required for delete mode",
+      `${ERROR}session_id is required for delete mode`,
     );
   });
 
@@ -73,7 +73,7 @@ describe("validate: mode", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      `::error::mode must be "create" or "delete", got: ${mode}`,
+      `${ERROR}mode must be "create" or "delete", got: ${mode}`,
     );
     expect(result.outputs.mode).toBeUndefined();
   });
@@ -94,7 +94,7 @@ describe("validate: booleans fail closed", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      `::error::${name} must be true or false, got: ${value}`,
+      `${ERROR}${name} must be true or false, got: ${value}`,
     );
   });
 
@@ -147,7 +147,7 @@ describe("validate: automation_mode", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain(
-        `::error::automation_mode must be an AutomationMode name such as AUTO_CREATE_PR or AUTOMATION_MODE_UNSPECIFIED, got: ${value}`,
+        `${ERROR}automation_mode must be an AutomationMode name such as AUTO_CREATE_PR or AUTOMATION_MODE_UNSPECIFIED, got: ${value}`,
       );
     },
   );
@@ -179,7 +179,7 @@ describe("validate: session_id in delete mode", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain(
-        `::error::session_id must look like 1234567890 or sessions/1234567890, got: ${value}`,
+        `${ERROR}session_id must look like 1234567890 or sessions/1234567890, got: ${value}`,
       );
     },
   );
@@ -208,7 +208,7 @@ describe("validate: API key", () => {
     const result = await runJules("validate", env);
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("::error::jules_api_key is required");
+    expect(result.stdout).toContain(`${ERROR}jules_api_key is required`);
   });
 });
 
@@ -241,7 +241,7 @@ describe("create applies the same boolean rules", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::require_plan_approval must be true or false, got: yes",
+      `${ERROR}require_plan_approval must be true or false, got: yes`,
     );
     expect(mock.requests).toHaveLength(0);
   });
@@ -256,7 +256,7 @@ describe("error annotations escape workflow command data", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      '::error::mode must be "create" or "delete", got: line1%0Aline2',
+      `${ERROR}mode must be "create" or "delete", got: line1%0Aline2`,
     );
     expect(result.stdout.split("\n")).not.toContain("line2");
   });
@@ -284,7 +284,7 @@ describe("create re-checks the prompt", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      "::error::prompt is required for create mode",
+      `${ERROR}prompt is required for create mode`,
     );
     expect(mock.requests).toHaveLength(0);
   });

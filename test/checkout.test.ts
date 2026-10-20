@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ERROR,
   type MockJules,
   makeGitRepo,
   makeScratchDir,
@@ -16,7 +17,7 @@ afterEach(async () => {
   mock = undefined;
 });
 
-const CHECKOUT_DIR = ".jules-action-checkout";
+const CHECKOUT_DIR = ".jules-el-conejo-checkout";
 
 const createEnv = (overrides: Record<string, string> = {}) => ({
   JULES_MODE: "create",
@@ -42,7 +43,7 @@ describe("validate decides whether the action needs its own checkout", () => {
     },
   );
 
-  it("refuses to reuse a .jules-action-checkout it did not create", async () => {
+  it("refuses to reuse a .jules-el-conejo-checkout it did not create", async () => {
     const cwd = await makeScratchDir("jules-workspace-");
     await mkdir(join(cwd, CHECKOUT_DIR));
     await writeFile(join(cwd, CHECKOUT_DIR, "keep.txt"), "caller file\n");
@@ -54,7 +55,7 @@ describe("validate decides whether the action needs its own checkout", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
-      `::error::include_last_commit and include_commit_log need a checkout, but ${CHECKOUT_DIR} already exists`,
+      `${ERROR}include_last_commit and include_commit_log need a checkout, but ${CHECKOUT_DIR} already exists`,
     );
     expect(result.outputs.needs_checkout).toBeUndefined();
     expect(existsSync(join(cwd, CHECKOUT_DIR, "keep.txt"))).toBe(true);
