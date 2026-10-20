@@ -297,6 +297,17 @@ cmd_create() {
 
   local session_url delimiter
   session_url=$(printf '%s' "$BODY" | jq -r '.url // ""')
+
+  # These become single-line key=value outputs; a value with a newline would
+  # add lines of its own to GITHUB_OUTPUT, so odd shapes fail instead.
+  local name_shape='^sessions/[A-Za-z0-9_-]+$' id_shape='^[A-Za-z0-9_-]+$'
+  local url_shape='^https://[^[:space:]]+$'
+  if ! [[ "$session_name" =~ $name_shape ]] || ! [[ "$session_id" =~ $id_shape ]]; then
+    error "Jules API returned an unexpected session name or id: $session_name / $session_id"
+  fi
+  if [ -n "$session_url" ] && ! [[ "$session_url" =~ $url_shape ]]; then
+    error "Jules API returned an unexpected session url: $session_url"
+  fi
   # Multiline output needs a heredoc delimiter; a random one cannot collide
   # with a line of the response.
   delimiter="JULES_$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"

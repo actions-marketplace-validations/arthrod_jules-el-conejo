@@ -241,3 +241,29 @@ describe("jules.sh create payload title", () => {
     expect(JSON.parse(mock.requests[0].body).title).toBe("T");
   });
 });
+
+describe("jules.sh create checks response fields before writing outputs", () => {
+  it.each([
+    ["name", { name: "sessions/9\nextra=1", id: "9" }],
+    ["id", { name: "sessions/9", id: "9\nextra=1" }],
+    ["url", { name: "sessions/9", id: "9", url: "https://x/9\nextra=1" }],
+  ])("refuses a %s containing a newline", async (_field, reply) => {
+    mock = await startMockJules(() => json(200, reply));
+    const result = await runJules("create", createEnv(mock.baseUrl));
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(
+      "::error::Jules API returned an unexpected session",
+    );
+    expect(result.outputs).toEqual({});
+  });
+
+  it("accepts a response without a url", async () => {
+    mock = await startMockJules(() => json(200, { name: "sessions/9" }));
+    const result = await runJules("create", createEnv(mock.baseUrl));
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(result.outputs.session_id).toBe("9");
+    expect(result.outputs.session_url).toBe("");
+  });
+});

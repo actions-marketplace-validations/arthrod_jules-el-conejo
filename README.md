@@ -108,6 +108,7 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 - Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
 - Deleting a session retries transient errors (timeouts, 429, 5xx) up to 3 times, so in the worst case a delete takes about 4 minutes. A 404 is reported as a warning and treated as already deleted.
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
+- A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
 
 ## 📤 Outputs
