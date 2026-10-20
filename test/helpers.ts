@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingHttpHeaders,
@@ -14,6 +14,24 @@ export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const SCRIPT = join(REPO_ROOT, "scripts", "jules.sh");
 // Lets the suite run under a specific bash (e.g. macOS /bin/bash 3.2).
 const BASH = process.env.JULES_TEST_BASH ?? "bash";
+
+const scratchDirs = new Set<string>();
+
+/** Creates a temp dir that removeScratchDirs deletes after the test file. */
+export async function makeScratchDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  scratchDirs.add(dir);
+  return dir;
+}
+
+/** Deletes every dir from makeScratchDir; test/setup.ts runs it after each file. */
+export async function removeScratchDirs(): Promise<void> {
+  const dirs = [...scratchDirs];
+  scratchDirs.clear();
+  await Promise.all(
+    dirs.map((dir) => rm(dir, { recursive: true, force: true })),
+  );
+}
 
 export type RecordedRequest = {
   method: string;
@@ -123,7 +141,7 @@ export async function runJules(
   env: Record<string, string>,
   options: { cwd?: string } = {},
 ): Promise<RunResult> {
-  const runnerTemp = await mkdtemp(join(tmpdir(), "jules-runner-"));
+  const runnerTemp = await makeScratchDir("jules-runner-");
   const outputFile = join(runnerTemp, "github_output");
   await writeFile(outputFile, "");
   const child = spawn(
@@ -157,7 +175,7 @@ export async function runJules(
 
 /** Creates a throwaway git repo with one commit, for include_* tests. */
 export async function makeGitRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "jules-repo-"));
+  const dir = await makeScratchDir("jules-repo-");
   const git = (...args: string[]) =>
     new Promise<void>((done, fail) => {
       const child = spawn(
