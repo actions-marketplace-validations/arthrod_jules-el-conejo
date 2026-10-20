@@ -1,0 +1,47 @@
+name: Autonomous Bug Fix (No Plan Approval)
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  fix-bug:
+    if: github.event.label.name == 'bug'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+
+    steps:
+      - name: Invoke Jules (fully autonomous)
+        id: jules
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
+        uses: nq-rdl/jules-action@main
+        with:
+          prompt: |
+            Please diagnose and fix the following bug:
+
+            ## ${{ github.event.issue.title }}
+
+            ${{ github.event.issue.body }}
+
+            1. Analyze the bug report and identify the root cause
+            2. Implement a minimal, targeted fix
+            3. Add a regression test
+          title: "Fix: ${{ github.event.issue.title }}"
+          require_plan_approval: false
+          automation_mode: AUTO_CREATE_PR
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          starting_branch: 'main'
+
+      - name: Comment session link on issue
+        if: steps.jules.outputs.session_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Jules is working on this! Session: \`${{ steps.jules.outputs.session_id }}\``
+            });

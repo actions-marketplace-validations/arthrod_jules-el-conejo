@@ -1,0 +1,41 @@
+name: Clean Up Jules Session on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup-session:
+    # Only run when a PR is merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # Extract session ID from PR body or labels.
+      # This assumes the Jules session ID was stored in the PR body
+      # (Jules typically includes this when using AUTO_CREATE_PR).
+      - name: Extract Jules session ID from PR
+        id: extract
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            // Look for a Jules session reference in PR body
+            const match = body.match(/ses_[a-zA-Z0-9]+/);
+            if (match) {
+              core.setOutput('session_id', match[0]);
+              core.setOutput('found', 'true');
+            } else {
+              core.setOutput('found', 'false');
+              console.log('No Jules session ID found in PR body');
+            }
+
+      - name: Delete Jules session
+        if: steps.extract.outputs.found == 'true'
+        uses: nq-rdl/jules-action@main
+        with:
+          mode: delete
+          session_id: ${{ steps.extract.outputs.session_id }}
+          jules_api_key: ${{ secrets.JULES_API_KEY }}

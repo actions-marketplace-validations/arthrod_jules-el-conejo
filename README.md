@@ -83,11 +83,24 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `prompt` | **Required.** The task for Jules to perform. | — |
+| `prompt` | The task for Jules to perform. **Required for create mode.** | — |
 | `jules_api_key` | **Required.** Your Jules API key (use secrets). | — |
 | `starting_branch` | Branch for Jules to start from. | `main` |
 | `include_last_commit` | Include the last commit's diff in context. | `false` |
 | `include_commit_log` | Include recent commit history in context. | `false` |
+| `title` | Optional title for the Jules session. Auto-generated if omitted. | — |
+| `require_plan_approval` | Whether Jules waits for plan approval before executing. Set `false` for fully autonomous operation. | `false` |
+| `automation_mode` | Automation mode for the session. `AUTO_CREATE_PR` makes Jules create a PR automatically. | `AUTO_CREATE_PR` |
+| `mode` | Action mode: `create` to start a new session, `delete` to remove an existing session. | `create` |
+| `session_id` | Session ID for delete mode (e.g., `ses_abc123`). | — |
+
+## 📤 Outputs
+
+| Output | Description |
+|--------|-------------|
+| `session_id` | The Jules session ID (e.g., `ses_abc123`) |
+| `session_name` | The full session resource name (e.g., `sessions/ses_abc123`) |
+| `response` | The full JSON response from the Jules API |
 
 ---
 
@@ -102,6 +115,8 @@ Copy these into `.github/workflows/` and customize:
 | [bug-fixer](./examples/bug-fixer.yml) | Issue labeled `bug` | Diagnose and fix bugs (or implement features) with structured prompts |
 | [ci-failure-fix](./examples/ci-failure-fix.yml) | CI workflow fails | Automatically fix failed builds |
 | [unblocked-issues](./examples/unblocked-issues.yml) | Issue closed | Work on issues that were blocked by the closed issue |
+| [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | Fully autonomous bug fix with session tracking |
+| [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | Delete Jules session when its PR is merged |
 
 See [examples/README.md](./examples/README.md) for detailed setup instructions.
 
