@@ -335,3 +335,32 @@ describe("skills catalog and example skill injection", () => {
     expect(julesStep.with?.automation_mode).toBe("AUTO_CREATE_PR");
   });
 });
+
+describe("examples/bug-fixer.yml trust gate", () => {
+  const job = readWorkflow("bug-fixer.yml").jobs["fix-bug"];
+
+  it("gates every step on both the issue author and the labeler", () => {
+    for (const step of job.steps) {
+      expect(step.if).toContain("github.event.issue.user.login");
+      expect(step.if).toContain("github.event.sender.login");
+      expect(step.if).toContain("&&");
+    }
+  });
+});
+
+describe("skills", () => {
+  const skill = (file: string) =>
+    readFileSync(join(REPO_ROOT, "skills", file), "utf8");
+
+  it("pr-review-polyglot-standards runs the BLE rule it promises", () => {
+    const command = skill("pr-review-polyglot-standards.md")
+      .split("\n")
+      .find((line) => line.includes("--extend-select"));
+
+    expect(command).toMatch(/--extend-select \S*\bBLE\b/);
+  });
+
+  it("pr-review-testing does not assume a tests/ directory", () => {
+    expect(skill("pr-review-testing.md")).not.toMatch(/\bruff check tests\//);
+  });
+});

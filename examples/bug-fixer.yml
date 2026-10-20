@@ -22,7 +22,7 @@ jobs:
     steps:
       # 🥕 Check out the repository to load skills from skills/.
       - name: 🥕 Check out repository for skill injection
-        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
         uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -30,7 +30,7 @@ jobs:
       # 🐇 Inject static triage and test adequacy skills into the debugging prompt.
       - name: 🐇 Inject static triage and testing skills
         id: skills
-        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
         run: |
           {
             echo "triage_skill<<__JULES_SKILL_EOF__"
@@ -51,9 +51,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: 🐇 Run Jules, el conejo
-        # 🥕 SECURITY: Only allow trusted users to trigger Jules.
+        # 🥕 SECURITY: Only trusted users may trigger Jules: both the issue author
+        # (whose issue body becomes the prompt) and whoever added the label.
         # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
-        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) }}
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
         uses: arthrod/jules-el-conejo@main
         with:
           prompt: |
