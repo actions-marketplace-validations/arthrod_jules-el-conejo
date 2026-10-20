@@ -55,8 +55,8 @@ jobs:
   e2e:
     name: End-to-end (uses the action against a mock Jules API)
     # Runs the composite action itself against a local mock Jules API. `uses: $/`
-    # (self-repository syntax) loads the action from this commit, not from the
-    # workspace that the action's own checkout step rewrites.
+    # (self-repository syntax) loads the action from this commit, independent of
+    # whatever the workspace holds.
     runs-on: ubuntu-latest
     env:
       JULES_API_BASE_URL: http://127.0.0.1:8787/v1alpha
@@ -83,6 +83,10 @@ jobs:
           mode: remove
           jules_api_key: e2e-test-key
 
+      # The action must reuse this checkout instead of cleaning it.
+      - name: Leave an untracked file in the workspace
+        run: echo "caller file" > untracked-sentinel.txt
+
       - name: Create a session through the action
         id: create
         uses: $/
@@ -93,6 +97,7 @@ jobs:
           title: E2E session
           jules_api_key: e2e-test-key
           starting_branch: main
+          include_last_commit: true
 
       - name: Delete the session through the action
         id: delete
@@ -114,6 +119,8 @@ jobs:
         run: |
           set -x
           test "$BAD_MODE_OUTCOME" = "failure"
+          test -f untracked-sentinel.txt
+          test ! -e .jules-action-checkout
           test "$SESSION_ID" = "16871897978654894041"
           test "$SESSION_NAME" = "sessions/16871897978654894041"
           test "$SESSION_URL" = "https://jules.google.com/session/16871897978654894041"
@@ -126,8 +133,55 @@ jobs:
             and .[0].method == "POST" and .[0].path == "/v1alpha/sessions"
             and .[0].headers["x-goog-api-key"] == "e2e-test-key"
             and (.[0].body | fromjson | .title == "E2E session"
-              and .prompt == "Fix the e2e bug"
+              and (.prompt | startswith("Fix the e2e bug\n\n\nContent of the latest commit"))
               and .sourceContext.source == "sources/github/\(env.GITHUB_REPOSITORY)")
             and .[1].method == "DELETE"
             and .[1].path == "/v1alpha/sessions/16871897978654894041"
+          ' "$RUNNER_TEMP/requests.json"
+
+  e2e-no-workspace-repo:
+    name: End-to-end (caller checked out into a subdirectory)
+    # The workspace root is not a repo, so include_last_commit makes the action
+    # check out into its own subdirectory. actions/checkout would delete the
+    # contents of a non-repo target, so src/ surviving proves it never aimed at
+    # the workspace root.
+    runs-on: ubuntu-latest
+    env:
+      JULES_API_BASE_URL: http://127.0.0.1:8787/v1alpha
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          path: src
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Start mock Jules API
+        run: |
+          bun src/test/fixtures/mock-jules-server.ts 8787 > "$RUNNER_TEMP/mock-jules.log" 2>&1 &
+          for _ in $(seq 1 50); do
+            curl -fsS http://127.0.0.1:8787/healthz && exit 0
+            sleep 0.2
+          done
+          cat "$RUNNER_TEMP/mock-jules.log"
+          exit 1
+
+      - name: Create a session that includes the last commit
+        uses: $/
+        with:
+          prompt: Fix the e2e bug
+          jules_api_key: e2e-test-key
+          starting_branch: main
+          include_last_commit: true
+
+      - name: Assert the workspace is intact and the prompt has git context
+        run: |
+          set -x
+          test -f src/action.yaml
+          test -d src/.git
+          test ! -e .jules-action-checkout
+          curl -fsS http://127.0.0.1:8787/__requests | tee "$RUNNER_TEMP/requests.json"
+          jq -e '
+            length == 1
+            and (.[0].body | fromjson | .prompt
+              | startswith("Fix the e2e bug\n\n\nContent of the latest commit")
+                and contains("\ncommit \(env.GITHUB_SHA)"))
           ' "$RUNNER_TEMP/requests.json"

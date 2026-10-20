@@ -5,11 +5,14 @@
 # in each step's `env:` block. Nothing is interpolated into this script with
 # GitHub expressions, so input values are only ever data, never shell code.
 #
-# Usage: jules.sh validate|create|delete
+# Usage: jules.sh validate|create|delete|cleanup
 set -euo pipefail
 
 JULES_API_BASE_URL="${JULES_API_BASE_URL:-https://jules.googleapis.com/v1alpha}"
 WORK_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+# Where the action checks out the repository when the caller has not. See
+# cmd_validate for why it is never the caller's workspace itself.
+CHECKOUT_DIR=.jules-action-checkout
 
 # Messages quote input values, so escape them as workflow command data: an
 # unescaped newline would end the annotation and start a new command line.
@@ -197,8 +200,21 @@ cmd_validate() {
   require_api_key
   parse_create_options
 
+  # Git context needs a checkout. On an existing repo actions/checkout cleans
+  # it and drops persisted credentials; in a directory without .git it deletes
+  # everything. So reuse the caller's checkout, or use a fresh subdirectory.
+  local needs_checkout=false context_dir=.
+  if [ "$MODE" = "create" ] &&
+    { [ "$INCLUDE_LAST_COMMIT" = "true" ] || [ "$INCLUDE_COMMIT_LOG" = "true" ]; } &&
+    ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    needs_checkout=true
+    context_dir=$CHECKOUT_DIR
+  fi
+
   {
     echo "mode=$MODE"
+    echo "needs_checkout=$needs_checkout"
+    echo "git_context_dir=$context_dir"
     echo "require_plan_approval=$REQUIRE_PLAN_APPROVAL"
     echo "include_last_commit=$INCLUDE_LAST_COMMIT"
     echo "include_commit_log=$INCLUDE_COMMIT_LOG"
@@ -219,7 +235,7 @@ build_prompt() {
       # shellcheck disable=SC2016 # literal backticks
       printf '\n\nContent of the latest commit (in the format of `git show`):\n'
       echo '```'
-      git show
+      git -C "${JULES_GIT_CONTEXT_DIR:-.}" show
       echo '```'
     } >> "$prompt_file"
   fi
@@ -229,7 +245,7 @@ build_prompt() {
       # shellcheck disable=SC2016 # literal backticks
       printf '\n\nLog of the last 20 commits (in the format of `git log --stat`):\n'
       echo '```'
-      git log -20 --stat
+      git -C "${JULES_GIT_CONTEXT_DIR:-.}" log -20 --stat
       echo '```'
     } >> "$prompt_file"
   fi
@@ -342,12 +358,21 @@ cmd_delete() {
   } >> "$GITHUB_OUTPUT"
 }
 
+# Removes the action's own checkout. Any other value, including ".", the
+# caller's checkout, leaves the workspace alone.
+cmd_cleanup() {
+  if [ "${JULES_GIT_CONTEXT_DIR:-}" = "$CHECKOUT_DIR" ]; then
+    rm -rf -- "$CHECKOUT_DIR"
+  fi
+}
+
 case "${1:-}" in
   validate) cmd_validate ;;
   create) cmd_create ;;
   delete) cmd_delete ;;
+  cleanup) cmd_cleanup ;;
   *)
-    echo "usage: jules.sh validate|create|delete" >&2
+    echo "usage: jules.sh validate|create|delete|cleanup" >&2
     exit 2
     ;;
 esac

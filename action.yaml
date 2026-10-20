@@ -76,9 +76,12 @@ runs:
         JULES_INCLUDE_COMMIT_LOG: ${{ inputs.include_commit_log }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" validate
 
+    # Only for include_last_commit/include_commit_log when the caller has no
+    # checkout, and never into the caller's workspace itself (see jules.sh).
     - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      if: ${{ steps.validate.outputs.mode == 'create' }}
+      if: ${{ steps.validate.outputs.needs_checkout == 'true' }}
       with:
+        path: ${{ steps.validate.outputs.git_context_dir }}
         fetch-depth: 30
         persist-credentials: false
 
@@ -96,6 +99,7 @@ runs:
         JULES_AUTOMATION_MODE: ${{ steps.validate.outputs.automation_mode }}
         JULES_INCLUDE_LAST_COMMIT: ${{ steps.validate.outputs.include_last_commit }}
         JULES_INCLUDE_COMMIT_LOG: ${{ steps.validate.outputs.include_commit_log }}
+        JULES_GIT_CONTEXT_DIR: ${{ steps.validate.outputs.git_context_dir }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" create
 
     - name: Delete Jules session
@@ -106,3 +110,11 @@ runs:
         JULES_API_KEY: ${{ inputs.jules_api_key }}
         JULES_SESSION_ID: ${{ inputs.session_id }}
       run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" delete
+
+    - name: Remove the action's checkout
+      id: cleanup
+      if: ${{ always() && steps.validate.outputs.needs_checkout == 'true' }}
+      shell: bash
+      env:
+        JULES_GIT_CONTEXT_DIR: ${{ steps.validate.outputs.git_context_dir }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/jules.sh" cleanup

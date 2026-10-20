@@ -103,6 +103,12 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 - `session_id` may contain only letters, digits, `_` and `-`, optionally prefixed with `sessions/`.
 - `jules_api_key` must not be empty.
 
+**Git context and checkout.**
+- Jules reads your repository from GitHub, so the action needs no checkout of its own. It uses git only for `include_last_commit` and `include_commit_log`.
+- If the workspace is already a git checkout, those commands run there, and the action never cleans it, moves its HEAD or touches its credentials. Check out with `fetch-depth: 20` or more if you want the whole 20-commit log in `include_commit_log`.
+- Otherwise the action checks out the repository into `.jules-action-checkout` and removes that directory when it finishes.
+- Without either flag, the action does not check anything out. Earlier versions checked out on every create, so if a later step relied on that side effect, add your own `actions/checkout` step.
+
 **Error handling.**
 - Each attempt at an API call has a 10 s connect timeout and a 60 s overall timeout.
 - Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.

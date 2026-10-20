@@ -42,7 +42,7 @@ describe("action.yaml wiring", () => {
     runSteps.map((step) => [step.name ?? step.id ?? "unnamed", step] as const),
   )("step %s only delegates to scripts/jules.sh", (_name, step) => {
     expect(step.run?.trim()).toMatch(
-      /^bash "\$GITHUB_ACTION_PATH\/scripts\/jules\.sh" (validate|create|delete)$/,
+      /^bash "\$GITHUB_ACTION_PATH\/scripts\/jules\.sh" (validate|create|delete|cleanup)$/,
     );
   });
 
@@ -88,12 +88,36 @@ describe("action.yaml wiring", () => {
 describe("action.yaml uses validated values", () => {
   const byId = (id: string) => steps.find((step) => step.id === id);
 
-  it("gates checkout, create and delete on the normalized mode", () => {
+  it("checks out only when validate asks, into the directory it names", () => {
     const checkout = steps.find((step) =>
       step.uses?.startsWith("actions/checkout@"),
     );
+    expect(checkout?.if).toContain(
+      "steps.validate.outputs.needs_checkout == 'true'",
+    );
+    expect(checkout?.with?.path).toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal GitHub expression syntax
+      "${{ steps.validate.outputs.git_context_dir }}",
+    );
+    expect(byId("invoke")?.env?.JULES_GIT_CONTEXT_DIR).toContain(
+      "steps.validate.outputs.git_context_dir",
+    );
+  });
+
+  it("always removes the action's own checkout afterwards", () => {
+    const cleanup = byId("cleanup");
+    expect(cleanup?.if).toContain("always()");
+    expect(cleanup?.if).toContain(
+      "steps.validate.outputs.needs_checkout == 'true'",
+    );
+    expect(cleanup?.env?.JULES_GIT_CONTEXT_DIR).toContain(
+      "steps.validate.outputs.git_context_dir",
+    );
+    expect(steps.indexOf(cleanup as Step)).toBe(steps.length - 1);
+  });
+
+  it("gates create and delete on the normalized mode", () => {
     expect(byId("validate")).toBeDefined();
-    expect(checkout?.if).toContain("steps.validate.outputs.mode == 'create'");
     expect(byId("invoke")?.if).toContain(
       "steps.validate.outputs.mode == 'create'",
     );
