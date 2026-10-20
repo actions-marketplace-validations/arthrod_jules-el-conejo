@@ -1,0 +1,132 @@
+# 🐇🥕 Jules, el conejo: dynamic polyglot monorepo matrix workflow that detects
+# active language stacks, injects stack-specific review skills, and dispatches
+# parallel Jules sessions per stack.
+name: Polyglot Monorepo Matrix Triage & Architecture Enforcer
+
+on:
+  schedule:
+    # 🥕 Run every Wednesday at 3 AM UTC
+    - cron: '0 3 * * 3'
+  workflow_dispatch:
+    inputs:
+      require_approval:
+        description: '🐇 Wait for human plan approval in Jules before opening PRs'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  discover-stacks:
+    name: Discover Active Repository Stacks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      # 🥕 Check out the repository to inspect which language stacks are present.
+      - name: 🥕 Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Dynamically build the stack matrix and map each stack to its skills.
+      - name: 🐇 Detect stacks and map skills
+        id: detect
+        run: |
+          STACKS='[]'
+
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || git ls-files '*.py' | grep -q .; then
+            STACKS="$(echo "$STACKS" | jq -c '. + [{"stack":"python","skills":["skills/pr-review-polyglot-standards.md","skills/pr-review-architecture-quality.md","skills/pr-review-testing.md"],"tools":"pyrefly check && ruff check . && pytest"}]')"
+          fi
+
+          if [ -f tsconfig.json ] || [ -f package.json ] || git ls-files '*.ts' '*.tsx' | grep -q .; then
+            STACKS="$(echo "$STACKS" | jq -c '. + [{"stack":"typescript","skills":["skills/pr-review-static-triage.md","skills/pr-review-architecture-quality.md","skills/pr-review-testing.md"],"tools":"biome ci . && tsc --noEmit && vitest run"}]')"
+          fi
+
+          if [ -f Cargo.toml ] || git ls-files '*.rs' | grep -q .; then
+            STACKS="$(echo "$STACKS" | jq -c '. + [{"stack":"rust","skills":["skills/pr-review-rust-quality.md","skills/pr-review-performance.md","skills/pr-review-testing.md"],"tools":"cargo check --all-targets && cargo clippy --all-targets -- -D warnings && cargo test"}]')"
+          fi
+
+          if git ls-files '*.sh' '.github/workflows/*.yml' '.github/workflows/*.yaml' 'README.md' | grep -q .; then
+            STACKS="$(echo "$STACKS" | jq -c '. + [{"stack":"shell-docs-ci","skills":["skills/pr-review-polyglot-standards.md","skills/pr-body-visualizer.md"],"tools":"shellcheck scripts/*.sh && actionlint && markdownlint-cli2 README.md"}]')"
+          fi
+
+          echo "matrix=${STACKS}" >> "$GITHUB_OUTPUT"
+
+  stack-triage:
+    name: Triage & Enforce (${{ matrix.target.stack }})
+    needs: discover-stacks
+    if: needs.discover-stacks.outputs.matrix != '[]' && needs.discover-stacks.outputs.matrix != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.discover-stacks.outputs.matrix) }}
+
+    steps:
+      # 🥕 Check out the repository so the matrix leg can load its assigned skills.
+      - name: 🥕 Check out repository for ${{ matrix.target.stack }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 25
+          persist-credentials: false
+
+      # 🐇 Concatenate all skills assigned to this stack plus pr-body-visualizer.
+      - name: 🐇 Inject skills for ${{ matrix.target.stack }}
+        id: inject
+        env:
+          SKILL_FILES: ${{ toJson(matrix.target.skills) }}
+        run: |
+          COMBINED="$(mktemp)"
+          for f in $(echo "$SKILL_FILES" | jq -r '.[]'); do
+            if [ -f "$f" ]; then
+              {
+                echo "## Injected Skill: \`$f\`"
+                cat "$f"
+                echo ""
+              } >> "$COMBINED"
+            fi
+          done
+          if [ -f skills/pr-body-visualizer.md ]; then
+            {
+              echo "## Injected Skill: \`skills/pr-body-visualizer.md\`"
+              cat skills/pr-body-visualizer.md
+            } >> "$COMBINED"
+          fi
+
+          {
+            echo "bundle<<__JULES_BUNDLE_EOF__"
+            cat "$COMBINED"
+            echo "__JULES_BUNDLE_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$COMBINED"
+
+      # 🥕 Launch a dedicated Jules session for this stack with its injected skill bundle.
+      - name: 🐇 Run Jules, el conejo (${{ matrix.target.stack }})
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
+        with:
+          prompt: |
+            You are a specialized Polyglot Triage & Architecture Enforcement Agent assigned to the **`${{ matrix.target.stack }}`** stack.
+
+            ## Stack Toolchain Gate
+            Run and verify the following stack toolchain commands in your environment:
+            ```bash
+            ${{ matrix.target.tools }}
+            ```
+
+            ## Objectives for `${{ matrix.target.stack }}`
+            1. Execute the stack's static analyzers, typecheckers, and test suites above to surface deterministic Confidence-1 findings.
+            2. Enforce all domain rules from the injected skills below (barrel-file elimination, Single Responsibility, public API call-site consistency, Pure Bash idioms, PEP 8/20, Rust ownership/concurrency safety, and test hygiene).
+            3. Implement a focused, self-contained improvement or defect fix strictly scoped to the `${{ matrix.target.stack }}` files.
+            4. Format the PR body using `skills/pr-body-visualizer.md` (`## Summary`, `## Evidence` Before/After, and `## Merge Danger`). Do not open a PR if no validated improvement is found.
+
+            ${{ steps.inject.outputs.bundle }}
+          title: "🐇 Polyglot Triage [${{ matrix.target.stack }}]: Architecture & Static Gate"
+          require_plan_approval: ${{ inputs.require_approval || false }}
+          automation_mode: AUTO_CREATE_PR
+          include_commit_log: true
+          jules_api_key: ${{ secrets.JULES_API_KEY }}

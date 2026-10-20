@@ -1,5 +1,6 @@
 # 🐇🥕 Jules, el conejo: when you close an issue, Jules starts on every issue it
-# was blocking. 🥕 Replace the trusted-user list below with your own logins.
+# was blocking, injecting architecture quality and testing skills.
+# 🥕 Replace the trusted-user list below with your own logins.
 name: Work on Unblocked Issues
 
 on:
@@ -29,7 +30,7 @@ jobs:
     strategy:
       matrix:
         issue-number: ${{ fromJson(needs.detect-unblocked.outputs.matrix) }}
-    
+
     steps:
       - name: Get issue details
         id: get_issue
@@ -42,7 +43,37 @@ jobs:
               issue_number: ${{ matrix.issue-number }}
             });
             return issue.data;
-      
+
+      # 🥕 Check out the repository so architecture and testing skills can be injected.
+      - name: 🥕 Check out repository for skill injection
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), fromJson(steps.get_issue.outputs.result).user.login) }}
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Load architecture quality, testing, and PR visualizer skills from skills/.
+      - name: 🐇 Inject architecture and testing skills
+        id: skills
+        if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), fromJson(steps.get_issue.outputs.result).user.login) }}
+        run: |
+          {
+            echo "arch_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-architecture-quality.md ]; then
+              cat skills/pr-review-architecture-quality.md
+            else
+              echo "Enforce Single Responsibility, public API consistency, direct imports (no barrel files), and robust error handling."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "testing_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-testing.md ]; then
+              cat skills/pr-review-testing.md
+            else
+              echo "Enforce unit/edge-case/error-path test adequacy and deterministic teardown."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: 🐇 Run Jules, el conejo, on the unblocked issue
         # 🥕 SECURITY: Only allow trusted users' issues.
         # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
@@ -56,5 +87,15 @@ jobs:
 
             ${{ fromJson(steps.get_issue.outputs.result).body }}
 
-            Please implement this feature following the project's coding standards.
+            ## Implementation Standards
+            Please implement this feature adhering strictly to the injected Architecture Quality and Testing skills:
+            1. **Module Cohesion & Direct Imports:** Follow Single Responsibility, avoid context-free names (`Manager`, `Helper`, `Util`), and use direct module imports (never introduce barrel re-export files).
+            2. **API Contract & Error Robustness:** Update all call sites if any signature changes, narrow errors safely, and never silently swallow exceptions.
+            3. **Static Verification & Test Adequacy:** Run `pyrefly`/`ruff`, `biome`/`tsc --noEmit`, or `cargo clippy` and add unit tests covering happy paths, edge cases, and error paths.
+
+            ## Injected Skill: `skills/pr-review-architecture-quality.md`
+            ${{ steps.skills.outputs.arch_skill }}
+
+            ## Injected Skill: `skills/pr-review-testing.md`
+            ${{ steps.skills.outputs.testing_skill }}
           jules_api_key: ${{ secrets.JULES_API_KEY }}

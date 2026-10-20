@@ -15,7 +15,7 @@ Send Jules, Google's remote coding agent, to work from any GitHub Actions workfl
 
 ## 🥕 What is Jules?
 
-**[Jules](https://jules.google)** is a remote AI coding agent from [Google Labs](https://labs.google) powered by Gemini 3 Pro. It works autonomously in a cloud VM—analyzing your codebase, implementing features, fixing bugs, and creating pull requests while you focus on what matters.
+**[Jules](https://jules.google)** is a remote AI coding agent from [Google Labs](https://labs.google) powered by Gemini 3.1 Pro. It works autonomously in a cloud VM—analyzing your codebase, implementing features, fixing bugs, and creating pull requests while you focus on what matters.
 
 **Jules, el conejo** 🐇 is this GitHub Action: it lets you trigger Jules from any GitHub event, such as issues, pull requests, schedules, or workflow dispatches.
 
@@ -133,21 +133,25 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 
 ---
 
-## 🐇 Example Workflows
+## 🐇 Example Workflows & Skills
 
-🥕 Copy these into `.github/workflows/` and customize:
+🥕 Copy these into `.github/workflows/` and customize. Each workflow injects one or more engineering skills from [`./skills`](./skills):
 
-| Example | Trigger | Description |
-|---------|---------|-------------|
-| [weekly-cleanup](./examples/weekly-cleanup.yml) | Scheduled (cron) | Automated code maintenance and refactoring |
-| [performance-improver](./examples/performance-improver.yml) | Scheduled (daily) | ⚡ Hunt and fix performance bottlenecks |
-| [bug-fixer](./examples/bug-fixer.yml) | Issue labeled `bug` | Diagnose and fix bugs (or implement features) with structured prompts |
-| [ci-failure-fix](./examples/ci-failure-fix.yml) | CI workflow fails | Automatically fix failed builds |
-| [unblocked-issues](./examples/unblocked-issues.yml) | Issue closed | Work on issues that were blocked by the closed issue |
-| [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | Fully autonomous bug fix with session tracking |
-| [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | Delete Jules session when its PR is merged |
+| Example | Trigger | Injected Skills | Description |
+|---------|---------|-----------------|-------------|
+| [pr-reviewer](./examples/pr-reviewer.yml) | Pull request / manual | All 8 skills in `skills/` | 🔍 Multi-step PR reviewer: multi-tool static analysis, typechecking, detailed PR review comments, and a companion fix PR |
+| [security-owasp-auditor](./examples/security-owasp-auditor.yml) | Manifest push / daily | `pr-review-security-owasp`, `pr-review-static-triage`, `pr-body-visualizer` | 🛡️ OWASP Top 10, query parameterization, PII allowlist & supply-chain CVE gatekeeper |
+| [rust-systems-auditor](./examples/rust-systems-auditor.yml) | Rust PR / manual (`en-US`/`ja`) | `pr-review-rust-quality`, `pr-review-performance`, `pr-body-visualizer` | 🦀 Rust `unsafe` soundness, async concurrency & zero-cost abstraction auditor |
+| [polyglot-matrix-triage](./examples/polyglot-matrix-triage.yml) | Scheduled / manual | Dynamic per-stack skill bundle | 🧩 Auto-discovers repo stacks (`python`, `typescript`, `rust`, `shell-docs-ci`) and runs parallel Jules sessions |
+| [weekly-cleanup](./examples/weekly-cleanup.yml) | Scheduled (cron) | `pr-review-static-triage`, `pr-review-architecture-quality`, `pr-review-polyglot-standards` | Automated code maintenance, dead-code removal, and barrel-file elimination |
+| [performance-improver](./examples/performance-improver.yml) | Scheduled (daily) | `pr-review-performance`, `pr-body-visualizer` | ⚡ Hunt and fix $O(n^2)$ loops, N+1 queries, and hot-path bottlenecks |
+| [bug-fixer](./examples/bug-fixer.yml) | Issue labeled `bug` | `pr-review-static-triage`, `pr-review-testing` | Diagnose and fix bugs with static triage and regression tests |
+| [ci-failure-fix](./examples/ci-failure-fix.yml) | CI workflow fails | `pr-review-polyglot-standards`, `pr-review-testing` | Summarize failed CI steps and automatically fix failed builds |
+| [unblocked-issues](./examples/unblocked-issues.yml) | Issue closed | `pr-review-architecture-quality`, `pr-review-testing` | Work on issues that were blocked by the closed issue |
+| [autonomous-bug-fixer](./examples/autonomous-bug-fixer.yml) | Issue labeled `bug` | `pr-review-testing`, `pr-body-visualizer` | Fully autonomous bug fix with regression tests and session tracking |
+| [session-cleanup-on-merge](./examples/session-cleanup-on-merge.yml) | PR merged | `pr-body-visualizer` | Audit merged PR evidence and delete the Jules session when its PR is merged |
 
-🐇 See [examples/README.md](./examples/README.md) for detailed setup instructions.
+🐇 See [examples/README.md](./examples/README.md) for detailed setup instructions and the full skill catalog.
 
 ---
 

@@ -1,5 +1,6 @@
-# 🐇🥕 Jules, el conejo: when a PR that Jules opened is merged, delete its Jules
-# session so finished work does not pile up in the Jules web app.
+# 🐇🥕 Jules, el conejo: when a PR that Jules opened is merged, audit its PR body
+# against skills/pr-body-visualizer.md and delete its Jules session so finished
+# work does not pile up in the Jules web app.
 name: Clean Up Jules Session on PR Merge
 
 on:
@@ -16,6 +17,49 @@ jobs:
       contents: read
 
     steps:
+      # 🥕 Check out the repository to load the PR body visualizer skill for merge audit.
+      - name: 🥕 Check out repository for skill injection
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 🐇 Inject skills/pr-body-visualizer.md and audit the merged PR description structure.
+      - name: 🐇 Inject PR body visualizer skill and audit merged PR evidence
+        id: audit_body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Require ## Summary, ## Evidence (Before/After), and ## Merge Danger (Door & Blast Radius)."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### 🐇🥕 Merged PR Evidence Audit (PR #$PR_NUMBER)"
+            echo "Audited against injected skill \`skills/pr-body-visualizer.md\`:"
+            if printf '%s' "$PR_BODY" | grep -q '^## Summary'; then
+              echo "- ✅ \`## Summary\` visual architecture section present"
+            else
+              echo "- ⚠️ \`## Summary\` section missing"
+            fi
+            if printf '%s' "$PR_BODY" | grep -q '^## Evidence'; then
+              echo "- ✅ \`## Evidence\` Before/After verification section present"
+            else
+              echo "- ⚠️ \`## Evidence\` section missing"
+            fi
+            if printf '%s' "$PR_BODY" | grep -q '^## Merge Danger'; then
+              echo "- ✅ \`## Merge Danger\` Door & Blast Radius classification present"
+            else
+              echo "- ⚠️ \`## Merge Danger\` section missing"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # 🐇 Jules PRs (AUTO_CREATE_PR) end with a footer that links the task, e.g.
       # "PR created automatically by Jules for task
       # [16871897978654894041](https://jules.google.com/task/16871897978654894041)".

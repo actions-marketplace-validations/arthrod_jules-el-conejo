@@ -1,0 +1,137 @@
+# 🐇🥕 Jules, el conejo: principal-level Rust systems, memory safety, and async
+# concurrency auditor injecting pr-review-rust-quality, pr-review-performance,
+# and pr-body-visualizer skills (with English and Japanese output support).
+name: Rust Systems & Soundness Auditor
+
+on:
+  pull_request:
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+  workflow_dispatch:
+    inputs:
+      review_lang:
+        description: '🐇 Language for review output (en-US or ja)'
+        required: false
+        default: 'en-US'
+        type: choice
+        options:
+          - en-US
+          - ja
+
+jobs:
+  rust-audit:
+    name: Cargo Check, Clippy, Deny & Jules Systems Audit
+    # 🥕 Skip draft/WIP PRs and untrusted fork PRs. 🐇
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.draft == false &&
+        !contains(github.event.pull_request.title, 'WIP') &&
+        !contains(github.event.pull_request.title, 'DO NOT MERGE') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      REVIEW_LANG: ${{ inputs.review_lang || 'en-US' }}
+
+    steps:
+      # 🥕 Check out the target branch to run Cargo diagnostics and load skills.
+      - name: 🥕 Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 20
+          persist-credentials: false
+
+      # 🐇 Run Rust static analysis (cargo check, cargo clippy, cargo deny).
+      - name: 🐇 Run Cargo check, pedantic Clippy, and Cargo deny
+        id: cargo_gate
+        run: |
+          DIAG_FILE="$(mktemp)"
+          if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+            echo "### cargo check --all-targets --all-features" >> "$DIAG_FILE"
+            cargo check --all-targets --all-features >> "$DIAG_FILE" 2>&1 || true
+
+            echo "### cargo clippy (pedantic + perf)" >> "$DIAG_FILE"
+            cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic -W clippy::perf -A clippy::missing_errors_doc -A clippy::missing_panics_doc >> "$DIAG_FILE" 2>&1 || true
+
+            if command -v cargo-deny >/dev/null 2>&1; then
+              echo "### cargo deny check" >> "$DIAG_FILE"
+              cargo deny check advisories bans licenses sources >> "$DIAG_FILE" 2>&1 || true
+            fi
+          else
+            echo "Cargo workspace will be audited inside the Jules cloud VM." > "$DIAG_FILE"
+          fi
+
+          {
+            echo "diagnostics<<__JULES_RUST_EOF__"
+            head -n 100 "$DIAG_FILE"
+            echo "__JULES_RUST_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$DIAG_FILE"
+
+      # 🥕 Inject Rust systems quality, performance, and PR body visualizer skills.
+      - name: 🥕 Inject Rust quality, performance, and visualizer skills
+        id: skills
+        run: |
+          {
+            echo "rust_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-rust-quality.md ]; then
+              cat skills/pr-review-rust-quality.md
+            else
+              echo "Audit unsafe blocks, concurrency locks across .await, error propagation, and zero-cost abstractions."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "perf_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-review-performance.md ]; then
+              cat skills/pr-review-performance.md
+            else
+              echo "Eliminate unnecessary .clone() in hot loops, unindexed linear scans, and blocking I/O in async tasks."
+            fi
+            echo "__JULES_SKILL_EOF__"
+
+            echo "visualizer_skill<<__JULES_SKILL_EOF__"
+            if [ -f skills/pr-body-visualizer.md ]; then
+              cat skills/pr-body-visualizer.md
+            else
+              echo "Structure PR body with Summary, Before/After Evidence, and Merge Danger."
+            fi
+            echo "__JULES_SKILL_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      # 🐇 Invoke Jules, el conejo, to remediate Rust soundness, concurrency, and perf issues.
+      - name: 🐇 Run Jules, el conejo, for Rust systems remediation
+        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
+        uses: arthrod/jules-el-conejo@main
+        with:
+          prompt: |
+            Act as a Principal Rust Systems Engineer conducting a high-signal soundness, concurrency, and performance audit.
+            **Configured Output Language (`REVIEW_LANG`):** `${{ env.REVIEW_LANG }}`
+
+            ## Pre-Flight Cargo Diagnostics
+            ${{ steps.cargo_gate.outputs.diagnostics }}
+
+            ## Systems Engineering Audit & Remediation Tasks
+            1. **Soundness & `unsafe` Invariants:** Audit every `unsafe` block for `// SAFETY:` proofs, aliasing soundness, FFI pointer validation, and bounded allocations from untrusted length prefixes.
+            2. **Async Concurrency & Data Races:** Fix any `std::sync::MutexGuard` or `RwLock` held across `.await` points, inconsistent lock ordering, or blocking syscalls (`std::fs`, `std::net`) inside `tokio` async tasks without `spawn_blocking`.
+            3. **Structured Error Handling:** Replace `.unwrap()` and `.expect()` in production/library paths with `?`, `thiserror`, or `anyhow::Context`.
+            4. **Zero-Cost Abstractions & Hot-Path Performance:** Eliminate redundant `.clone()` / `.to_owned()` in loops, pre-allocate vectors with `Vec::with_capacity`, and replace linear `.iter().find(...)` inside loops with `HashMap`/`BTreeMap` lookups.
+            5. **Anti-Noise Policy:** Ignore trivial `rustfmt` or missing rustdoc nitpicks; focus strictly on substantive engineering fixes and format the PR body with `skills/pr-body-visualizer.md`.
+
+            ## Injected Skill: `skills/pr-review-rust-quality.md`
+            ${{ steps.skills.outputs.rust_skill }}
+
+            ## Injected Skill: `skills/pr-review-performance.md`
+            ${{ steps.skills.outputs.perf_skill }}
+
+            ## Injected Skill: `skills/pr-body-visualizer.md`
+            ${{ steps.skills.outputs.visualizer_skill }}
+          title: "🦀 Rust Systems & Soundness Remediation (${{ env.REVIEW_LANG }})"
+          starting_branch: ${{ github.event.pull_request.head.ref || 'main' }}
+          include_last_commit: true
+          jules_api_key: ${{ secrets.JULES_API_KEY }}

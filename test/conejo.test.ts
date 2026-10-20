@@ -22,6 +22,9 @@ const read = (...path: string[]) =>
 const exampleFiles = readdirSync(join(REPO_ROOT, "examples")).filter((file) =>
   file.endsWith(".yml"),
 );
+const skillFiles = readdirSync(join(REPO_ROOT, "skills")).filter((file) =>
+  file.endsWith(".md"),
+);
 
 describe("the action is branded Jules, el conejo", () => {
   it("names itself Jules, el conejo in action.yaml", () => {
@@ -79,20 +82,39 @@ describe("every instruction carries carrots and rabbits", () => {
     expect(entry.description).toMatch(CONEJO);
   });
 
-  it.each(["README.md", "examples/README.md"])(
-    "every heading in %s",
-    (file) => {
-      // A `# comment` inside a fenced code block is not a heading.
-      let fenced = false;
-      const headings = read(file)
-        .split("\n")
-        .filter((line) => {
-          if (line.startsWith("```")) fenced = !fenced;
-          return !fenced && /^#{1,6} /.test(line);
-        });
+  it.each([
+    "README.md",
+    "examples/README.md",
+    ...skillFiles.map((file) => join("skills", file)),
+  ])("every heading in %s", (file) => {
+    // A `# comment` inside a fenced code block is not a heading.
+    let fenced = false;
+    const headings = read(file)
+      .split("\n")
+      .filter((line) => {
+        if (line.startsWith("```")) fenced = !fenced;
+        return !fenced && /^#{1,6} /.test(line);
+      });
 
-      expect(headings.length).toBeGreaterThan(0);
-      expect(headings.filter((line) => !CONEJO.test(line))).toEqual([]);
+    expect(headings.length).toBeGreaterThan(0);
+    expect(headings.filter((line) => !CONEJO.test(line))).toEqual([]);
+  });
+
+  it.each(skillFiles)(
+    "skills/%s frontmatter description and brand are conejo-themed",
+    (file) => {
+      const text = read("skills", file);
+      const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
+      expect(fmMatch).not.toBeNull();
+      const fm = parse(fmMatch?.[1] ?? "") as {
+        description?: string;
+        metadata?: { brand?: string };
+      };
+
+      expect(fm.description).toMatch(CONEJO);
+      expect(fm.description).toContain("Jules, el conejo");
+      expect(fm.metadata?.brand).toMatch(CONEJO);
+      expect(fm.metadata?.brand).toContain("Jules, el conejo");
     },
   );
 

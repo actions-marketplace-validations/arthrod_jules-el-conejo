@@ -277,3 +277,61 @@ describe("shipped docs and examples", () => {
     expect(lines.slice(start, end).join("\n")).toContain("session_url");
   });
 });
+
+describe("skills catalog and example skill injection", () => {
+  const skillFiles = readdirSync(join(REPO_ROOT, "skills"))
+    .filter((file) => file.endsWith(".md"))
+    .sort();
+  const exampleYamlFiles = readdirSync(join(REPO_ROOT, "examples"))
+    .filter((file) => file.endsWith(".yml"))
+    .sort();
+
+  it("names every skill file descriptively after its frontmatter name", () => {
+    expect(skillFiles.length).toBeGreaterThanOrEqual(8);
+    for (const file of skillFiles) {
+      expect(file).not.toMatch(/^gemini-code-/);
+      const raw = readFileSync(join(REPO_ROOT, "skills", file), "utf8");
+      const frontmatterMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+      expect(frontmatterMatch).not.toBeNull();
+      const fm = parse(frontmatterMatch?.[1] ?? "") as { name?: string };
+      expect(`${fm.name}.md`).toBe(file);
+    }
+  });
+
+  it.each(exampleYamlFiles)(
+    "examples/%s injects at least one skill from skills/",
+    (file) => {
+      const content = readFileSync(join(REPO_ROOT, "examples", file), "utf8");
+      const referencedSkills = skillFiles.filter((skill) =>
+        content.includes(`skills/${skill}`),
+      );
+
+      expect(referencedSkills.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("examples/pr-reviewer.yml runs static analysis, typechecking, detailed comments, and a companion PR", () => {
+    const reviewer = readWorkflow("pr-reviewer.yml");
+    const job = reviewer.jobs["pr-review-pipeline"];
+    expect(job).toBeDefined();
+
+    const stepIds = job.steps.map((s) => s.id).filter(Boolean);
+    expect(stepIds).toEqual(
+      expect.arrayContaining([
+        "skills",
+        "static_analysis",
+        "typecheck",
+        "post_review",
+        "jules",
+      ]),
+    );
+
+    const julesStep = findStep(
+      job,
+      (step) => step.id === "jules",
+      "has id jules",
+    );
+    expect(julesStep.uses).toContain("arthrod/jules-el-conejo@");
+    expect(julesStep.with?.automation_mode).toBe("AUTO_CREATE_PR");
+  });
+});
