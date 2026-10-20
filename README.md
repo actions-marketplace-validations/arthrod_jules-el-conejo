@@ -97,8 +97,9 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️
 Inputs are validated before anything else runs, and an invalid value fails the step with an error that names the input:
 
 - `mode` must be `create` or `delete` (case-insensitive).
+- `prompt` must not be empty in create mode.
 - Boolean inputs accept `true` or `false` (case-insensitive). Anything else, such as `yes` or `1`, is an error rather than being read as `false`.
-- `automation_mode` must be an `AutomationMode` name (upper case).
+- `automation_mode` must look like an `AutomationMode` name: upper-case letters, digits and `_`. The action does not keep a list of valid names. The Jules API rejects an unknown name with HTTP 400, so new modes work without an action update.
 - `session_id` may contain only letters, digits, `_` and `-`, optionally prefixed with `sessions/`.
 - `jules_api_key` must not be empty.
 

@@ -246,3 +246,46 @@ describe("create applies the same boolean rules", () => {
     expect(mock.requests).toHaveLength(0);
   });
 });
+
+describe("error annotations escape workflow command data", () => {
+  it("keeps a multi-line value inside one ::error:: line", async () => {
+    const result = await runJules(
+      "validate",
+      validCreate({ JULES_MODE: "line1\nline2" }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(
+      '::error::mode must be "create" or "delete", got: line1%0Aline2',
+    );
+    expect(result.stdout.split("\n")).not.toContain("line2");
+  });
+
+  it("escapes percent signs and carriage returns", async () => {
+    const result = await runJules(
+      "validate",
+      validCreate({ JULES_AUTOMATION_MODE: "50%\rX" }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("got: 50%25%0DX");
+  });
+});
+
+describe("create re-checks the prompt", () => {
+  it("refuses an empty prompt before sending anything", async () => {
+    mock = await startMockJules();
+    const result = await runJules("create", {
+      ...validCreate({ JULES_PROMPT: "" }),
+      JULES_API_BASE_URL: mock.baseUrl,
+      JULES_STARTING_BRANCH: "main",
+      JULES_REPOSITORY: "octo/repo",
+    });
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(
+      "::error::prompt is required for create mode",
+    );
+    expect(mock.requests).toHaveLength(0);
+  });
+});

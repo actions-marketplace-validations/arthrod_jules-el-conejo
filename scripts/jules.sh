@@ -11,8 +11,14 @@ set -euo pipefail
 JULES_API_BASE_URL="${JULES_API_BASE_URL:-https://jules.googleapis.com/v1alpha}"
 WORK_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 
+# Messages quote input values, so escape them as workflow command data: an
+# unescaped newline would end the annotation and start a new command line.
 error() {
-  echo "::error::$*"
+  local message="$*"
+  message=${message//"%"/%25}
+  message=${message//$'\r'/%0D}
+  message=${message//$'\n'/%0A}
+  echo "::error::$message"
   exit 1
 }
 
@@ -97,6 +103,12 @@ parse_session_id() {
   SESSION_NAME="sessions/$SESSION_ID"
 }
 
+require_prompt() {
+  if [ -z "${JULES_PROMPT:-}" ]; then
+    error "prompt is required for create mode"
+  fi
+}
+
 require_api_key() {
   if [ -z "${JULES_API_KEY:-}" ]; then
     error "jules_api_key is required"
@@ -107,9 +119,7 @@ cmd_validate() {
   check_base_url
   parse_mode
   if [ "$MODE" = "create" ]; then
-    if [ -z "${JULES_PROMPT:-}" ]; then
-      error "prompt is required for create mode"
-    fi
+    require_prompt
   else
     parse_session_id
   fi
@@ -179,6 +189,7 @@ build_payload() {
 
 cmd_create() {
   check_base_url
+  require_prompt
   require_api_key
   parse_create_options
   local prompt_file="$WORK_DIR/jules_prompt.txt"
