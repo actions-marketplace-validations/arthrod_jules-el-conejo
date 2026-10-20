@@ -295,13 +295,18 @@ cmd_create() {
   # `//` treats "" as present, so an empty id falls back explicitly.
   session_id=$(printf '%s' "$BODY" | jq -r 'if (.id // "") != "" then .id else (.name | sub("^sessions/"; "")) end')
 
+  local session_url delimiter
+  session_url=$(printf '%s' "$BODY" | jq -r '.url // ""')
+  # Multiline output needs a heredoc delimiter; a random one cannot collide
+  # with a line of the response.
+  delimiter="JULES_$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
   {
     echo "session_id=$session_id"
     echo "session_name=$session_name"
-    # Multiline output requires heredoc delimiter
-    echo "response<<JULES_EOF"
+    echo "session_url=$session_url"
+    echo "response<<$delimiter"
     echo "$BODY"
-    echo "JULES_EOF"
+    echo "$delimiter"
   } >> "$GITHUB_OUTPUT"
 }
 
@@ -319,6 +324,11 @@ cmd_delete() {
     404) echo "::warning::Jules session $SESSION_NAME was not found; treating it as already deleted" ;;
     *) fail_http ;;
   esac
+
+  {
+    echo "session_id=$SESSION_ID"
+    echo "session_name=$SESSION_NAME"
+  } >> "$GITHUB_OUTPUT"
 }
 
 case "${1:-}" in

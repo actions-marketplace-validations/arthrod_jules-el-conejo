@@ -106,13 +106,19 @@ jobs:
         env:
           SESSION_ID: ${{ steps.create.outputs.session_id }}
           SESSION_NAME: ${{ steps.create.outputs.session_name }}
+          SESSION_URL: ${{ steps.create.outputs.session_url }}
           RESPONSE: ${{ steps.create.outputs.response }}
+          DELETED_ID: ${{ steps.delete.outputs.session_id }}
+          DELETED_NAME: ${{ steps.delete.outputs.session_name }}
           BAD_MODE_OUTCOME: ${{ steps.bad_mode.outcome }}
         run: |
           set -x
           test "$BAD_MODE_OUTCOME" = "failure"
           test "$SESSION_ID" = "16871897978654894041"
           test "$SESSION_NAME" = "sessions/16871897978654894041"
+          test "$SESSION_URL" = "https://jules.google.com/session/16871897978654894041"
+          test "$DELETED_ID" = "16871897978654894041"
+          test "$DELETED_NAME" = "sessions/16871897978654894041"
           echo "$RESPONSE" | jq -e '.name == "sessions/16871897978654894041"'
           curl -fsS http://127.0.0.1:8787/__requests | tee "$RUNNER_TEMP/requests.json"
           jq -e '

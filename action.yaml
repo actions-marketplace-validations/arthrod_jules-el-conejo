@@ -45,13 +45,16 @@ inputs:
 
 outputs:
   session_id:
-    description: 'The Jules session ID (e.g., ses_abc123)'
-    value: ${{ steps.invoke.outputs.session_id }}
+    description: 'The Jules session ID, e.g. 16871897978654894041 (create and delete modes)'
+    value: ${{ steps.invoke.outputs.session_id || steps.delete.outputs.session_id }}
   session_name:
-    description: 'The full session resource name (e.g., sessions/ses_abc123)'
-    value: ${{ steps.invoke.outputs.session_name }}
+    description: 'The full session resource name, e.g. sessions/16871897978654894041 (create and delete modes)'
+    value: ${{ steps.invoke.outputs.session_name || steps.delete.outputs.session_name }}
+  session_url:
+    description: 'Link to the session in the Jules web app (create mode)'
+    value: ${{ steps.invoke.outputs.session_url }}
   response:
-    description: 'The full JSON response from the Jules API'
+    description: 'The full JSON response from the Jules API (create mode)'
     value: ${{ steps.invoke.outputs.response }}
 
 runs:

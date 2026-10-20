@@ -116,7 +116,10 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 |--------|-------------|
 | `session_id` | The Jules session ID (e.g., `ses_abc123`) |
 | `session_name` | The full session resource name (e.g., `sessions/ses_abc123`) |
-| `response` | The full JSON response from the Jules API |
+| `session_url` | Link to the session in the Jules web app (create mode) |
+| `response` | The full JSON response from the Jules API (create mode) |
+
+In delete mode, `session_id` and `session_name` identify the deleted session, and `session_url` and `response` are empty.
 
 ---
 
