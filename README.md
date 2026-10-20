@@ -106,7 +106,7 @@ Inputs are validated before anything else runs, and an invalid value fails the s
 **Git context and checkout.**
 - Jules reads your repository from GitHub, so the action needs no checkout of its own. It uses git only for `include_last_commit` and `include_commit_log`.
 - If the workspace is already a git checkout, those commands run there, and the action never cleans it, moves its HEAD or touches its credentials. Check out with `fetch-depth: 20` or more if you want the whole 20-commit log in `include_commit_log`.
-- Otherwise the action checks out the repository into `.jules-action-checkout` and removes that directory when it finishes.
+- Otherwise the action checks out the repository into `.jules-action-checkout` and removes that directory when it finishes. If a directory of that name already exists, the step fails rather than overwrite it.
 - Without either flag, the action does not check anything out. Earlier versions checked out on every create, so if a later step relied on that side effect, add your own `actions/checkout` step.
 
 **Error handling.**

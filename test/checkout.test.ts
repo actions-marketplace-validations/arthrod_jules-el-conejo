@@ -42,6 +42,24 @@ describe("validate decides whether the action needs its own checkout", () => {
     },
   );
 
+  it("refuses to reuse a .jules-action-checkout it did not create", async () => {
+    const cwd = await makeScratchDir("jules-workspace-");
+    await mkdir(join(cwd, CHECKOUT_DIR));
+    await writeFile(join(cwd, CHECKOUT_DIR, "keep.txt"), "caller file\n");
+    const result = await runJules(
+      "validate",
+      createEnv({ JULES_INCLUDE_LAST_COMMIT: "true" }),
+      { cwd },
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(
+      `::error::include_last_commit and include_commit_log need a checkout, but ${CHECKOUT_DIR} already exists`,
+    );
+    expect(result.outputs.needs_checkout).toBeUndefined();
+    expect(existsSync(join(cwd, CHECKOUT_DIR, "keep.txt"))).toBe(true);
+  });
+
   it("uses the caller's checkout when cwd is already a repo", async () => {
     const repo = await makeGitRepo();
     const result = await runJules(

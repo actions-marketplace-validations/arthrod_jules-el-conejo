@@ -207,6 +207,11 @@ cmd_validate() {
   if [ "$MODE" = "create" ] &&
     { [ "$INCLUDE_LAST_COMMIT" = "true" ] || [ "$INCLUDE_COMMIT_LOG" = "true" ]; } &&
     ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    # The cleanup step always runs, so an existing directory is not ours;
+    # checkout would empty it and cleanup would delete it.
+    if [ -e "$CHECKOUT_DIR" ] || [ -L "$CHECKOUT_DIR" ]; then
+      error "include_last_commit and include_commit_log need a checkout, but $CHECKOUT_DIR already exists in the workspace. Remove it, or check out the repository before this step."
+    fi
     needs_checkout=true
     context_dir=$CHECKOUT_DIR
   fi
