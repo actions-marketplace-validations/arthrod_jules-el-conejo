@@ -1,9 +1,14 @@
 import { execSync } from "node:child_process";
-import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { json, type MockJules, runJules, startMockJules } from "./helpers";
+import {
+  json,
+  type MockJules,
+  makeScratchDir,
+  runJules,
+  startMockJules,
+} from "./helpers";
 
 let mock: MockJules | undefined;
 afterEach(async () => {
@@ -44,7 +49,7 @@ const redirect = () => ({
 
 /** Builds a curl shim that logs its argv, one argument per line. */
 const makeCurlShim = async (): Promise<{ dir: string; log: string }> => {
-  const dir = await mkdtemp(join(tmpdir(), "jules-curlshim-"));
+  const dir = await makeScratchDir("jules-curlshim-");
   const log = join(dir, "argv.log");
   const realCurl = execSync("command -v curl", { encoding: "utf8" }).trim();
   const shim = join(dir, "curl");
@@ -263,5 +268,47 @@ describe("jules.sh HTTP handling", () => {
       expect(argv).not.toContain("test-key");
       expect(mock.requests[0].headers["x-goog-api-key"]).toBe("test-key");
     });
+  });
+});
+
+describe("jules.sh scratch files", () => {
+  // BASH_ENV runs inside the script's own process before the script, so $$
+  // there is the script's PID and the old guessable paths can be planted.
+  const plantSymlinks = async (names: string[]) => {
+    const dir = await makeScratchDir("jules-plant-");
+    const lines = names.map(
+      (name) =>
+        `ln -s ${JSON.stringify(join(dir, name))} "$RUNNER_TEMP/${name}"`,
+    );
+    const plant = join(dir, "plant.sh");
+    await writeFile(plant, `${lines.join("\n")}\n`);
+    return { dir, plant };
+  };
+
+  it("does not follow symlinks planted at guessable scratch paths", async () => {
+    mock = await startMockJules();
+    const names = [
+      "jules_api_key_header.$$",
+      "jules_prompt.txt",
+      "jules_payload.json",
+    ];
+    const { dir, plant } = await plantSymlinks(names);
+    const result = await runJules("create", {
+      ...createEnv(mock.baseUrl),
+      BASH_ENV: plant,
+    });
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(mock.requests[0].headers["x-goog-api-key"]).toBe("test-key");
+    const written = (await readdir(dir)).filter((name) => name !== "plant.sh");
+    expect(written).toEqual([]);
+  });
+
+  it("removes its scratch files when it exits", async () => {
+    mock = await startMockJules();
+    const result = await runJules("create", createEnv(mock.baseUrl));
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(await readdir(result.runnerTemp)).toEqual(["github_output"]);
   });
 });

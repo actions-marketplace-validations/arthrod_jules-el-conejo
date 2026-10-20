@@ -37,12 +37,29 @@ check_base_url() {
   fi
 }
 
+SCRATCH_FILES=()
+remove_scratch_files() {
+  if [ "${#SCRATCH_FILES[@]}" -gt 0 ]; then
+    rm -f "${SCRATCH_FILES[@]}"
+  fi
+}
+trap remove_scratch_files EXIT
+
+# Sets REPLY to a new scratch file, removed on exit. mktemp creates it with
+# O_EXCL and mode 0600, so a file or symlink planted at a guessable path in a
+# shared temp dir cannot redirect the write.
+make_scratch_file() {
+  REPLY=$(mktemp "$WORK_DIR/jules_$1.XXXXXX") ||
+    error "Could not create a scratch file in $WORK_DIR"
+  SCRATCH_FILES+=("$REPLY")
+}
+
 # Writes the API key header to a private file so the key never shows up in
 # curl's argv (visible to other processes on shared runners).
 prepare_auth() {
-  KEY_HEADER_FILE="$WORK_DIR/jules_api_key_header.$$"
-  (umask 077 && printf 'X-Goog-Api-Key: %s\n' "$JULES_API_KEY" > "$KEY_HEADER_FILE")
-  trap 'rm -f "$KEY_HEADER_FILE"' EXIT
+  make_scratch_file api_key_header
+  KEY_HEADER_FILE=$REPLY
+  printf 'X-Goog-Api-Key: %s\n' "$JULES_API_KEY" > "$KEY_HEADER_FILE"
 }
 
 # api_request <retry-policy> <curl args...>
@@ -241,8 +258,11 @@ cmd_create() {
   require_prompt
   require_api_key
   parse_create_options
-  local prompt_file="$WORK_DIR/jules_prompt.txt"
-  local payload_file="$WORK_DIR/jules_payload.json"
+  local prompt_file payload_file
+  make_scratch_file prompt
+  prompt_file=$REPLY
+  make_scratch_file payload
+  payload_file=$REPLY
   build_prompt "$prompt_file"
   build_payload "$prompt_file" > "$payload_file"
 
