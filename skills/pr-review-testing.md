@@ -19,8 +19,9 @@ metadata:
 - 🥕 **Python:**
   ```bash
   pyrefly check --output-format=github
-  ruff check tests/ --select PT,B,ASYNC --output-format=github
-  pytest --cov=src --cov-report=term-missing --cov-branch
+  # 🥕 Use the repository's own test and source roots (pyproject.toml, setup.cfg).
+  ruff check . --select PT,B,ASYNC --output-format=github
+  pytest --cov --cov-report=term-missing --cov-branch
   ```
 - 🐇 **TypeScript / JavaScript:**
   ```bash

@@ -14,8 +14,9 @@ WORK_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 # cmd_validate for why it is never the caller's workspace itself.
 CHECKOUT_DIR=.jules-el-conejo-checkout
 
-# Every annotation and status line the action prints is signed with this. The
-# response JSON that create echoes is data and is printed as is.
+# Every annotation and status line the action prints is signed with this. Response
+# bodies it echoes (create's JSON, an HTTP error body in fail_http) are data and
+# are printed as is.
 BRAND='🥕🐇 Jules, el conejo:'
 
 # annotate <error|warning> <message...>

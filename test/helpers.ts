@@ -12,7 +12,8 @@ import { join, resolve } from "node:path";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const SCRIPT = join(REPO_ROOT, "scripts", "jules.sh");
-// Every annotation and status line from jules.sh starts with this signature.
+// Every annotation and status line from jules.sh starts with this signature;
+// echoed response bodies are data and are not signed.
 export const BRAND = "🥕🐇 Jules, el conejo:";
 export const ERROR = `::error::${BRAND} `;
 export const WARNING = `::warning::${BRAND} `;

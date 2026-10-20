@@ -118,7 +118,7 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
 - A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
-- Every error, warning and status line the action prints starts with `🥕🐇 Jules, el conejo:`, so you can spot them in a busy job log. The JSON response that create mode echoes is printed as is.
+- Every error, warning and status line the action prints starts with `🥕🐇 Jules, el conejo:`, so you can spot them in a busy job log. Response bodies the action echoes (the create JSON, an HTTP error body) are data and are printed as is.
 
 ## 🐇 Outputs
 

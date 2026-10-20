@@ -19,7 +19,7 @@ metadata:
 - 🥕 **Python (`**/*.py`):**
   ```bash
   pyrefly check --output-format=github
-  ruff check --line-length 100 --extend-select E,F,W,N,B,D,C4,T10,ERA --ignore W191,W391,E117,D208 --dummy-variable-rgx '^(_.*|junk|extra)$' --output-format=github .
+  ruff check --line-length 100 --extend-select E,F,W,N,B,BLE,D,C4,T10,ERA --ignore W191,W391,E117,D208 --dummy-variable-rgx '^(_.*|junk|extra)$' --output-format=github .
   ```
 - 🐇 **Bash / Shell (`**/*.sh`, extensionless `tests/check_*`, `tests/test_*`):**
   ```bash
