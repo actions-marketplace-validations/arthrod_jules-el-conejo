@@ -107,6 +107,7 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 
 **🥕 Git context and checkout.**
 - Jules reads your repository from GitHub, so the action needs no checkout of its own. It uses git only for `include_last_commit` and `include_commit_log`.
+- Jules's own clone of `starting_branch` has one commit of history and does not see later pushes, so a prompt that asks Jules to run `git diff base...head` fails. Put the diff in the prompt instead. [docs/jules-api-quirks.md](docs/jules-api-quirks.md) covers this and the API's other surprises.
 - If the workspace is already a git checkout, those commands run there, and the action never cleans it, moves its HEAD or touches its credentials. Check out with `fetch-depth: 20` or more if you want the whole 20-commit log in `include_commit_log`.
 - Otherwise the action checks out the repository into `.jules-el-conejo-checkout` and removes that directory when it finishes. If a directory of that name already exists, the step fails rather than overwrite it.
 - Without either flag, the action does not check anything out. Earlier versions checked out on every create, so if a later step relied on that side effect, add your own `actions/checkout` step.
@@ -232,6 +233,7 @@ Jules triggering.
 - **Jules Homepage:** [jules.google](https://jules.google)
 - **Jules Web App:** [jules.google.com](https://jules.google.com)
 - **Jules API Documentation:** [jules.google/docs/api/reference](https://jules.google/docs/api/reference/)
+- **Jules API quirks, measured:** [docs/jules-api-quirks.md](docs/jules-api-quirks.md)
 - **GitHub Actions:** [docs.github.com/actions](https://docs.github.com/actions)
 - **Jules, el conejo, issues:** [github.com/arthrod/jules-el-conejo/issues](https://github.com/arthrod/jules-el-conejo/issues)
 
