@@ -77,6 +77,29 @@ prepare_auth() {
   printf 'X-Goog-Api-Key: %s\n' "$JULES_API_KEY" > "$KEY_HEADER_FILE"
 }
 
+# Sets CAP_RETRY (true or false) and CAP_STATUS. true when the reply held in
+# HTTP_CODE and BODY means the account may be over its concurrency cap: HTTP
+# 429, or HTTP 400 whose .error.status is FAILED_PRECONDITION. Either way the
+# request was refused and nothing was stored, so re-sending it cannot start a
+# duplicate session. CAP_STATUS carries the API status name for the warning
+# when the body has one; a body that is not JSON cannot say
+# FAILED_PRECONDITION, so only a 429 retries then, unnamed.
+over_cap_reply() {
+  CAP_RETRY=false
+  CAP_STATUS=
+  if [ "$HTTP_CODE" = "429" ]; then
+    CAP_RETRY=true
+    CAP_STATUS=$(printf '%s' "$BODY" | jq -r '.error.status // empty' 2>/dev/null) ||
+      CAP_STATUS=
+    return
+  fi
+  if [ "$HTTP_CODE" = "400" ] &&
+    printf '%s' "$BODY" | jq -e '.error.status == "FAILED_PRECONDITION"' > /dev/null 2>&1; then
+    CAP_RETRY=true
+    CAP_STATUS=FAILED_PRECONDITION
+  fi
+}
+
 # api_request <retry-policy> <curl args...>
 # Sets HTTP_CODE and BODY. Policies:
 #   connect   - retry only when the request never left this machine (curl exit
@@ -85,12 +108,18 @@ prepare_auth() {
 #               duplicate session and a duplicate PR.
 #   transient - let curl also retry timeouts, 408, 429 and 5xx. Idempotent
 #               calls only (delete).
+# Both policies also wait and re-send an over-cap reply (see over_cap_reply):
+# four retries 5, 5, 5 and 15 minutes after the first failure, then the last
+# reply is left for the caller's fail_http.
 api_request() {
-  local policy="$1" response status attempt=1
+  local policy="$1" response status attempt=1 cap_tries=0 cap_wait
   shift
   local -a retry=()
+  local -a cap_waits=(300 300 300 900)
   if [ "$policy" = "transient" ]; then
-    retry=(--retry 3 --retry-delay 1 --retry-connrefused)
+    # --retry-max-time keeps a long Retry-After from stretching curl's own
+    # retries; the schedule above owns every wait longer than 30 seconds.
+    retry=(--retry 3 --retry-delay 1 --retry-max-time 30 --retry-connrefused)
   fi
 
   while :; do
@@ -100,6 +129,16 @@ api_request() {
       -H @"$KEY_HEADER_FILE" \
       -w '\n%{http_code}' "$@") || status=$?
     if [ "$status" -eq 0 ]; then
+      HTTP_CODE=$(printf '%s\n' "$response" | tail -1)
+      BODY=$(printf '%s\n' "$response" | sed '$d')
+      over_cap_reply
+      if [ "$CAP_RETRY" = "true" ] && [ "$cap_tries" -lt "${#cap_waits[@]}" ]; then
+        cap_wait=${cap_waits[$cap_tries]}
+        cap_tries=$((cap_tries + 1))
+        annotate warning "Jules API returned HTTP $HTTP_CODE${CAP_STATUS:+ $CAP_STATUS} (the account may be at its concurrency cap); retrying in $((cap_wait / 60)) minutes (retry $cap_tries of ${#cap_waits[@]})"
+        sleep "$cap_wait"
+        continue
+      fi
       break
     fi
     if [ "$policy" = "connect" ] && [ "$attempt" -lt 3 ] &&
