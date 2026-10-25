@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -98,6 +99,29 @@ const makeSleepShim = async (): Promise<{ dir: string; log: string }> => {
 const slept = async (log: string): Promise<string[]> =>
   (await readFile(log, "utf8")).split("\n").filter((line) => line !== "");
 
+/** Builds a curl shim that exits 28 (curl's timeout) on its first invocation
+ * and afterwards execs the real curl. */
+const makeCurlTimeoutShim = async (): Promise<{ dir: string }> => {
+  const dir = await makeScratchDir("jules-curlshim-");
+  const realCurl = execSync("command -v curl", { encoding: "utf8" }).trim();
+  const marker = join(dir, "timed-out");
+  const shim = join(dir, "curl");
+  await writeFile(
+    shim,
+    [
+      "#!/usr/bin/env bash",
+      `if [ ! -e ${JSON.stringify(marker)} ]; then`,
+      `  touch ${JSON.stringify(marker)}`,
+      "  exit 28",
+      "fi",
+      `exec ${JSON.stringify(realCurl)} "$@"`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(shim, 0o755);
+  return { dir };
+};
+
 describe("jules.sh waits and retries over-cap replies", () => {
   it("create retries one 429 after 5 minutes and succeeds", async () => {
     const sleep = await makeSleepShim();
@@ -188,8 +212,6 @@ describe("jules.sh waits and retries over-cap replies", () => {
   });
 
   it("delete gives up on a 429 after its own five attempts", async () => {
-    // curl's --retry re-sends within one attempt too, so only the schedule
-    // sleeps and the final error are pinned here.
     const sleep = await makeSleepShim();
     mock = await startMockJules(quotaExhausted);
     const result = await runJules(
@@ -200,18 +222,17 @@ describe("jules.sh waits and retries over-cap replies", () => {
     );
 
     expect(result.code).toBe(1);
+    expect(mock.requests).toHaveLength(5);
     expect(await slept(sleep.log)).toEqual(["300", "300", "300", "900"]);
     expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 429`);
   }, 60_000);
 
   it("delete retries a 429 that clears while it waits", async () => {
-    // The first four 429s are curl's own --retry; the fifth and sixth make
-    // api_request sleep once before the seventh reply succeeds.
     const sleep = await makeSleepShim();
     let calls = 0;
     mock = await startMockJules(() => {
       calls += 1;
-      return calls <= 6 ? quotaExhausted() : json(200, {});
+      return calls === 1 ? quotaExhausted() : json(200, {});
     });
     const result = await runJules(
       "delete",
@@ -221,6 +242,30 @@ describe("jules.sh waits and retries over-cap replies", () => {
     );
 
     expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(mock.requests).toHaveLength(2);
+    expect(await slept(sleep.log)).toEqual(["300"]);
+  }, 60_000);
+
+  it("delete ignores a 429's Retry-After header", async () => {
+    // A curl that re-sent on its own would honor Retry-After (2 s) instead
+    // of the cap schedule's 5 minutes.
+    const sleep = await makeSleepShim();
+    let calls = 0;
+    mock = await startMockJules(() => {
+      calls += 1;
+      return calls === 1
+        ? { ...quotaExhausted(), headers: { "retry-after": "2" } }
+        : json(200, {});
+    });
+    const result = await runJules(
+      "delete",
+      deleteEnv(mock.baseUrl, {
+        PATH: `${sleep.dir}:${process.env.PATH ?? ""}`,
+      }),
+    );
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(mock.requests).toHaveLength(2);
     expect(await slept(sleep.log)).toEqual(["300"]);
   }, 60_000);
 
@@ -242,4 +287,67 @@ describe("jules.sh waits and retries over-cap replies", () => {
     expect(await slept(sleep.log)).toEqual([]);
     expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 400`);
   });
+});
+
+describe("jules.sh retries delete's transient failures", () => {
+  it("delete retries a non-JSON 503 and then a cap refusal", async () => {
+    // curl's own --retry would concatenate both replies' bodies into one
+    // BODY, jq could not parse it, and the cap retry the 400 deserves was
+    // skipped.
+    const sleep = await makeSleepShim();
+    let calls = 0;
+    mock = await startMockJules(() => {
+      calls += 1;
+      if (calls === 1) {
+        return { status: 503, body: "<html>proxy error</html>" };
+      }
+      return calls === 2 ? preconditionFailed() : json(200, {});
+    });
+    const result = await runJules(
+      "delete",
+      deleteEnv(mock.baseUrl, {
+        PATH: `${sleep.dir}:${process.env.PATH ?? ""}`,
+      }),
+    );
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(mock.requests).toHaveLength(3);
+    expect(await slept(sleep.log)).toEqual(["1", "300"]);
+  }, 60_000);
+
+  it("delete gives up on a 503 after four attempts", async () => {
+    const sleep = await makeSleepShim();
+    let calls = 0;
+    mock = await startMockJules(() => {
+      calls += 1;
+      return calls <= 4 ? json(503, {}) : json(200, {});
+    });
+    const result = await runJules(
+      "delete",
+      deleteEnv(mock.baseUrl, {
+        PATH: `${sleep.dir}:${process.env.PATH ?? ""}`,
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(mock.requests).toHaveLength(4);
+    expect(await slept(sleep.log)).toEqual(["1", "1", "1"]);
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 503`);
+  }, 15_000);
+
+  it("delete retries a curl timeout", async () => {
+    // The shim's first curl invocation exits 28 without transferring; the
+    // second runs the real curl.
+    const sleep = await makeSleepShim();
+    const curlShim = await makeCurlTimeoutShim();
+    mock = await startMockJules(() => json(200, {}));
+    const result = await runJules("delete", {
+      ...deleteEnv(mock.baseUrl),
+      PATH: `${sleep.dir}:${curlShim.dir}:${process.env.PATH ?? ""}`,
+    });
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(mock.requests).toHaveLength(1);
+    expect(await slept(sleep.log)).toEqual(["1"]);
+  }, 15_000);
 });

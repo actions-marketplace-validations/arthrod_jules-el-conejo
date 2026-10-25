@@ -103,34 +103,35 @@ over_cap_reply() {
 }
 
 # api_request <retry-policy> <curl args...>
-# Sets HTTP_CODE and BODY. Policies:
-#   connect   - retry only when the request never left this machine (curl exit
+# Sets HTTP_CODE and BODY. api_request owns every retry; one curl call is
+# exactly one transfer, because curl's own --retry would write each
+# attempt's body to the same stdout (a non-JSON 503 before a 400 leaves BODY
+# unparseable) and would honor Retry-After itself, off-schedule. Each policy
+# quick-retries its failures up to 3 times, sleep 1 before each, on one
+# counter of its own:
+#   connect   - only when the request never left this machine (curl exit
 #               6: DNS, 7: connect). Used for create: POST /sessions is not
 #               idempotent, and a retry after a lost response would start a
-#               duplicate session and a duplicate PR.
-#   transient - let curl also retry timeouts, 408, 429 and 5xx. Idempotent
-#               calls only (delete).
+#               duplicate session and a duplicate PR. Nothing else is ever
+#               re-sent: any other curl failure errors as one that may
+#               already have reached Jules, and no HTTP status retries.
+#   transient - also curl exit 28 (timeout) and HTTP 408, 500, 502, 503 and
+#               504. Idempotent calls only (delete). Once the quick retries
+#               run out, a curl failure errors as unreachable and an HTTP
+#               status is returned for the caller's fail_http.
 # Both policies also wait and re-send an over-cap reply (see over_cap_reply):
 # four retries, at 5, 10, 15 and 30 minutes after the first failure (waits of
-# 5, 5, 5 and 15 minutes), then the last reply is left for the caller's
-# fail_http.
+# 5, 5, 5 and 15 minutes), counted apart from the quick retries, then the
+# last reply is left for the caller's fail_http.
 api_request() {
   local policy="$1" response status attempt=1 cap_tries=0 cap_wait
   shift
-  local -a retry=()
+  local transient_status='^(408|500|502|503|504)$'
   local -a cap_waits=(300 300 300 900)
-  if [ "$policy" = "transient" ]; then
-    # --retry-max-time still fits three retries after attempts that each ran
-    # into --max-time (3 x 61s), and keeps curl from honoring a Retry-After
-    # longer than what is left of it: such a 429 comes back to the schedule
-    # above instead.
-    retry=(--retry 3 --retry-delay 1 --retry-max-time 240 --retry-connrefused)
-  fi
 
   while :; do
     status=0
     response=$(curl -sS --connect-timeout 10 --max-time 60 \
-      ${retry[@]+"${retry[@]}"} \
       -H @"$KEY_HEADER_FILE" \
       -w '\n%{http_code}' "$@") || status=$?
     if [ "$status" -eq 0 ]; then
@@ -144,10 +145,22 @@ api_request() {
         sleep "$cap_wait"
         continue
       fi
+      # A transient status is re-sent a second apart; once the three
+      # re-sends are spent, the last status reaches the caller's fail_http.
+      if [ "$policy" = "transient" ] && [ "$attempt" -le 3 ] &&
+        [[ "$HTTP_CODE" =~ $transient_status ]]; then
+        attempt=$((attempt + 1))
+        sleep 1
+        continue
+      fi
       return
     fi
-    if [ "$policy" = "connect" ] && [ "$attempt" -lt 3 ] &&
-      { [ "$status" -eq 6 ] || [ "$status" -eq 7 ]; }; then
+    # A request that never left this machine is re-sent a second apart; for
+    # the transient policy, so is one that timed out.
+    if [ "$attempt" -le 3 ] &&
+      { [ "$status" -eq 7 ] ||
+        { [ "$policy" = "connect" ] && [ "$status" -eq 6 ]; } ||
+        { [ "$policy" = "transient" ] && [ "$status" -eq 28 ]; }; }; then
       attempt=$((attempt + 1))
       sleep 1
       continue
