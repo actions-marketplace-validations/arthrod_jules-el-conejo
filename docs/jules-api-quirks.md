@@ -72,9 +72,10 @@ A comment on a PR that Jules opened wakes the session behind it, and the API doe
 | Create while the account is at its concurrency cap | 400 `FAILED_PRECONDITION` "Precondition check failed."; **no session is created** |
 | `sendMessage` while at the cap | 429 `RESOURCE_EXHAUSTED`; **the message is not stored** |
 
-- **The cap is on sessions that are working.** In S4a-retry, two `sendMessage` calls got 429 while 11 sessions were IN_PROGRESS. The third was accepted after exactly one of them had moved to COMPLETED (IN_PROGRESS 11→10, COMPLETED 27→28; AWAITING_USER_FEEDBACK 16, PAUSED 24 and FAILED 22 unchanged). So COMPLETED sessions don't count, and the cap looked like 11.
-  - **Not established:** whether AWAITING_USER_FEEDBACK or PAUSED sessions count. Their numbers did not change across the release, so this probe cannot tell; if they did count, the cap would be about 51, not 11. The session lists also only covered the account's newest 100 sessions.
-  - Waking an idle session with a message takes a slot.
+- **What the probe measured about the cap** (S4a-retry, `sendMessage` only): two calls got 429 while 11 sessions were IN_PROGRESS. The third was accepted after exactly one of them had moved to COMPLETED (IN_PROGRESS 11→10, COMPLETED 27→28; AWAITING_USER_FEEDBACK 16, PAUSED 24 and FAILED 22 unchanged). So IN_PROGRESS sessions count, COMPLETED sessions don't, and the cap looked like 11.
+  - **Not established:** whether QUEUED, AWAITING_USER_FEEDBACK or PAUSED sessions count. No session was QUEUED in any list, and the other two counts did not change across the release; if they counted, the cap would be about 51, not 11. The lists also only covered the account's newest 100 sessions.
+  - Also not established: that create is refused at the same number. Its 400s came a few minutes before these lists, and no count was taken then.
+  - A message to an idle session sends it back to IN_PROGRESS, so it takes a slot.
   - The listed state lags, so don't compute headroom from it.
 - **Rule: on a 429, or a 400 whose `error.status` is `FAILED_PRECONDITION`, wait and retry at 5, 10, 15 and 30 minutes after the first failure, then give up.** Neither rejection leaves anything behind, so a retry cannot duplicate a session or a message. Any other 400 is permanent and fails at once. `scripts/jules.sh` implements this rule for create and delete (#24).
 
