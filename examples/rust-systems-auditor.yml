@@ -106,8 +106,8 @@ jobs:
 
       # 🐇 Invoke Jules, el conejo, to remediate Rust soundness, concurrency, and perf issues.
       - name: 🐇 Run Jules, el conejo, for Rust systems remediation
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             Act as a Principal Rust Systems Engineer conducting a high-signal soundness, concurrency, and performance audit.

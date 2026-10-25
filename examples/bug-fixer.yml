@@ -53,9 +53,9 @@ jobs:
       - name: 🐇 Run Jules, el conejo
         # 🥕 SECURITY: Only trusted users may trigger Jules: both the issue author
         # (whose issue body becomes the prompt) and whoever added the label.
-        # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
+        # 🐇 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
         if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.issue.user.login) && contains(fromJSON('["your-username", "trusted-collaborator"]'), github.event.sender.login) }}
-        uses: arthrod/jules-el-conejo@main
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             Please diagnose and fix the following bug:

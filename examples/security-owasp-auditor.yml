@@ -122,8 +122,8 @@ jobs:
 
       # 🐇 Launch Jules, el conejo, to patch verified security vulnerabilities and open a PR.
       - name: 🐇 Run Jules, el conejo, for OWASP & supply-chain remediation
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             You are an Application Security, Privacy, and Supply-Chain Remediation Agent.

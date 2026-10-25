@@ -77,8 +77,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: 🐇 Run Jules, el conejo, to fix the failure
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             The CI workflow "${{ github.event.workflow_run.name }}" has failed.

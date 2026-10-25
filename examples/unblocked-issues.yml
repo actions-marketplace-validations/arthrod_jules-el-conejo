@@ -76,9 +76,9 @@ jobs:
 
       - name: 🐇 Run Jules, el conejo, on the unblocked issue
         # 🥕 SECURITY: Only allow trusted users' issues.
-        # 🐇 Pin to a release tag or commit SHA instead of @main in your workflows.
+        # 🐇 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
         if: ${{ contains(fromJSON('["your-username", "trusted-collaborator"]'), fromJson(steps.get_issue.outputs.result).user.login) }}
-        uses: arthrod/jules-el-conejo@main
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             An issue has been unblocked and is ready for implementation:

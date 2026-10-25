@@ -54,8 +54,8 @@ jobs:
       contents: read
     steps:
       - name: 🐇 Run Jules, el conejo
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             You are a security agent. Scan for vulnerabilities and fix them:
@@ -174,8 +174,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🐇 Run Jules, el conejo
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             You are a performance improvement agent. Run our benchmark suite
@@ -217,7 +217,7 @@ Jules triggering.
 - name: 🐇 Run Jules, el conejo
   # 🥕 Only runs if user is in the allowlist
   if: ${{ contains(fromJSON('["trusted-user", "another-user"]'), github.event.issue.user.login) }}
-  uses: arthrod/jules-el-conejo@main
+  uses: arthrod/jules-el-conejo@v1
   with:
     prompt: ...
 ```

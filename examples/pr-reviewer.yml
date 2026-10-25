@@ -301,8 +301,8 @@ jobs:
         if: >-
           (github.event_name == 'workflow_dispatch' && contains(fromJSON(env.TRUSTED_USERS), github.actor)) ||
           (github.event_name == 'pull_request' && contains(fromJSON(env.TRUSTED_USERS), github.event.pull_request.user.login))
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             You are a Principal Multi-Stage PR Reviewer and Remediation Agent working on Pull Request #${{ github.event.pull_request.number || inputs.pr_number }} ("${{ github.event.pull_request.title }}").
