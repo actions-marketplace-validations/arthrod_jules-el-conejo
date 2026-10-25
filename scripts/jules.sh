@@ -79,9 +79,11 @@ prepare_auth() {
 
 # Sets CAP_RETRY (true or false) and CAP_STATUS. true when the reply held in
 # HTTP_CODE and BODY means the account may be over its concurrency cap: HTTP
-# 429, or HTTP 400 whose .error.status is FAILED_PRECONDITION. Either way the
-# request was refused and nothing was stored, so re-sending it cannot start a
-# duplicate session. CAP_STATUS carries the API status name for the warning
+# 429, or HTTP 400 whose .error.status is FAILED_PRECONDITION. Both are
+# refusals: against the live API (issue #20) a create refused with 400
+# FAILED_PRECONDITION made no session and a message refused with 429 was not
+# stored, so re-sending cannot duplicate either. Any other 400 is a bad request
+# and fails at once. CAP_STATUS carries the API status name for the warning
 # when the body has one; a body that is not JSON cannot say
 # FAILED_PRECONDITION, so only a 429 retries then, unnamed.
 over_cap_reply() {
@@ -109,17 +111,20 @@ over_cap_reply() {
 #   transient - let curl also retry timeouts, 408, 429 and 5xx. Idempotent
 #               calls only (delete).
 # Both policies also wait and re-send an over-cap reply (see over_cap_reply):
-# four retries 5, 5, 5 and 15 minutes after the first failure, then the last
-# reply is left for the caller's fail_http.
+# four retries, at 5, 10, 15 and 30 minutes after the first failure (waits of
+# 5, 5, 5 and 15 minutes), then the last reply is left for the caller's
+# fail_http.
 api_request() {
   local policy="$1" response status attempt=1 cap_tries=0 cap_wait
   shift
   local -a retry=()
   local -a cap_waits=(300 300 300 900)
   if [ "$policy" = "transient" ]; then
-    # --retry-max-time keeps a long Retry-After from stretching curl's own
-    # retries; the schedule above owns every wait longer than 30 seconds.
-    retry=(--retry 3 --retry-delay 1 --retry-max-time 30 --retry-connrefused)
+    # --retry-max-time still fits three retries after attempts that each ran
+    # into --max-time (3 x 61s), and keeps curl from honoring a Retry-After
+    # longer than what is left of it: such a 429 comes back to the schedule
+    # above instead.
+    retry=(--retry 3 --retry-delay 1 --retry-max-time 240 --retry-connrefused)
   fi
 
   while :; do
@@ -139,7 +144,7 @@ api_request() {
         sleep "$cap_wait"
         continue
       fi
-      break
+      return
     fi
     if [ "$policy" = "connect" ] && [ "$attempt" -lt 3 ] &&
       { [ "$status" -eq 6 ] || [ "$status" -eq 7 ]; }; then
@@ -154,9 +159,6 @@ api_request() {
     fi
     error "Could not reach the Jules API (curl exit $status)"
   done
-
-  HTTP_CODE=$(printf '%s\n' "$response" | tail -1)
-  BODY=$(printf '%s\n' "$response" | sed '$d')
 }
 
 # Fails with a bounded, single-line annotation; the full body goes to the log

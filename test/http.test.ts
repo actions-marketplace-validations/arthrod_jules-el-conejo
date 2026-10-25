@@ -230,6 +230,30 @@ describe("jules.sh HTTP handling", () => {
     expect(mock.requests).toHaveLength(2);
   }, 15_000);
 
+  it("delete leaves curl time to retry a timeout three times", async () => {
+    // curl starts a retry only while its retry timer is under
+    // --retry-max-time, so the last retry must still fit after the earlier
+    // attempts each ran into --max-time.
+    const shim = await makeCurlShim();
+    mock = await startMockJules(() => json(200, {}));
+    const result = await runJules("delete", {
+      ...deleteEnv(mock.baseUrl),
+      PATH: `${shim.dir}:${process.env.PATH ?? ""}`,
+    });
+
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    const argv = (await readFile(shim.log, "utf8")).split("\n");
+    const flag = (name: string) =>
+      argv.includes(name)
+        ? Number(argv[argv.indexOf(name) + 1])
+        : Number.POSITIVE_INFINITY;
+    const retries = flag("--retry");
+    const delay = flag("--retry-delay");
+    expect(flag("--retry-max-time")).toBeGreaterThan(
+      retries * (flag("--max-time") + delay),
+    );
+  });
+
   describe("transport failures", () => {
     it("create reports an unreachable API", async () => {
       const dead = await startMockJules();

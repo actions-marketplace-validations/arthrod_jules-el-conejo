@@ -113,8 +113,9 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 
 **🐇 Error handling.**
 - Each attempt at an API call has a 10 s connect timeout and a 60 s overall timeout.
-- Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
-- Deleting a session retries transient errors (timeouts, 429, 5xx) up to 3 times, so in the worst case a delete takes about 4 minutes. A 404 is reported as a warning and treated as already deleted.
+- When the Jules account is at its limit of concurrently running sessions, the API refuses the call with HTTP 429, or with HTTP 400 `FAILED_PRECONDITION` for a create. Both create and delete wait and retry such a refusal at 5, 10, 15 and 30 minutes after the first one, printing a warning before each wait. They fail only if the last retry is refused too, so a step can wait about 30 minutes. A refused call leaves nothing behind, so a retry cannot start a duplicate session. Any other 400 is a bad request and fails at once.
+- Creating a session is otherwise retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
+- Deleting a session also retries transient errors (timeouts, 429, 5xx) up to 3 times in quick succession, so one delete attempt takes about 4 minutes at worst. A 404 is reported as a warning and treated as already deleted.
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
 - A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
