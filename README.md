@@ -107,14 +107,16 @@ Your repo now has a security agent hunting vulnerabilities daily! 🛡️🐇�
 
 **🥕 Git context and checkout.**
 - Jules reads your repository from GitHub, so the action needs no checkout of its own. It uses git only for `include_last_commit` and `include_commit_log`.
+- Jules's own clone of `starting_branch` has one commit of history and does not see later pushes unless Jules fetches them, so a prompt that asks Jules to run `git diff base...head` fails. Put the diff in the prompt instead, up to about 128 KiB. The prompt reaches the script through an environment variable, and Linux refuses a bigger one, so the step fails before Jules is called. For a bigger diff, commit it as a file on top of the head, point a tag at that commit, pass the tag as `starting_branch`, and name the file in the prompt. [docs/jules-api-quirks.md](docs/jules-api-quirks.md) covers this and the API's other surprises.
 - If the workspace is already a git checkout, those commands run there, and the action never cleans it, moves its HEAD or touches its credentials. Check out with `fetch-depth: 20` or more if you want the whole 20-commit log in `include_commit_log`.
 - Otherwise the action checks out the repository into `.jules-el-conejo-checkout` and removes that directory when it finishes. If a directory of that name already exists, the step fails rather than overwrite it.
 - Without either flag, the action does not check anything out. Earlier versions checked out on every create, so if a later step relied on that side effect, add your own `actions/checkout` step.
 
 **🐇 Error handling.**
 - Each attempt at an API call has a 10 s connect timeout and a 60 s overall timeout.
-- Creating a session is retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
-- Deleting a session retries transient errors (timeouts, 429, 5xx) up to 3 times, so in the worst case a delete takes about 4 minutes. A 404 is reported as a warning and treated as already deleted.
+- When the Jules account is at its limit of concurrently running sessions, the API refuses the call with HTTP 429, or with HTTP 400 `FAILED_PRECONDITION` for a create. Both create and delete wait and retry such a refusal at 5, 10, 15 and 30 minutes after the first one, printing a warning before each wait. They fail only if the last retry is refused too, so a step can wait about 30 minutes. A refused call leaves nothing behind, so a retry cannot start a duplicate session. Any other 400 is a bad request and fails at once.
+- Creating a session is otherwise retried only when the connection could not be made at all. It is never retried once the request may have reached Jules, because a retry could start a duplicate session and a duplicate PR. In that case the error says the request may already have reached Jules, so check the Jules web app for a new session before re-running.
+- Deleting a session also retries timeouts, refused connections and HTTP 408, 500, 502, 503 and 504 up to 3 times, a second apart. Each attempt is capped at 60 s, so these retries add about 4 minutes at worst. HTTP 429 is the over-cap case above. A 404 is reported as a warning and treated as already deleted.
 - Any other non-2xx response fails the step, showing the HTTP status and the start of the response body.
 - A successful create must return a JSON object whose session `name`, `id` and `url` have the expected shape (for example `sessions/<id>` and a single-line `https://` URL). Anything else fails the step instead of writing odd values to the outputs.
 - The API key is passed to curl through a private header file (created with `mktemp`, mode 0600, removed on exit), never on the command line.
@@ -231,6 +233,7 @@ Jules triggering.
 - **Jules Homepage:** [jules.google](https://jules.google)
 - **Jules Web App:** [jules.google.com](https://jules.google.com)
 - **Jules API Documentation:** [jules.google/docs/api/reference](https://jules.google/docs/api/reference/)
+- **Jules API quirks, measured:** [docs/jules-api-quirks.md](docs/jules-api-quirks.md)
 - **GitHub Actions:** [docs.github.com/actions](https://docs.github.com/actions)
 - **Jules, el conejo, issues:** [github.com/arthrod/jules-el-conejo/issues](https://github.com/arthrod/jules-el-conejo/issues)
 

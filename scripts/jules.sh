@@ -77,33 +77,96 @@ prepare_auth() {
   printf 'X-Goog-Api-Key: %s\n' "$JULES_API_KEY" > "$KEY_HEADER_FILE"
 }
 
-# api_request <retry-policy> <curl args...>
-# Sets HTTP_CODE and BODY. Policies:
-#   connect   - retry only when the request never left this machine (curl exit
-#               6: DNS, 7: connect). Used for create: POST /sessions is not
-#               idempotent, and a retry after a lost response would start a
-#               duplicate session and a duplicate PR.
-#   transient - let curl also retry timeouts, 408, 429 and 5xx. Idempotent
-#               calls only (delete).
-api_request() {
-  local policy="$1" response status attempt=1
-  shift
-  local -a retry=()
-  if [ "$policy" = "transient" ]; then
-    retry=(--retry 3 --retry-delay 1 --retry-connrefused)
+# Sets CAP_RETRY (true or false) and CAP_STATUS. true when the reply held in
+# HTTP_CODE and BODY means the account may be over its concurrency cap: HTTP
+# 429, or HTTP 400 whose .error.status is FAILED_PRECONDITION. Both are
+# refusals: against the live API (issue #20) a create refused with 400
+# FAILED_PRECONDITION made no session and a message refused with 429 was not
+# stored, so re-sending cannot duplicate either. Any other 400 is a bad request
+# and fails at once. CAP_STATUS carries the API status name for the warning
+# when the body has one; a body that is not JSON cannot say
+# FAILED_PRECONDITION, so only a 429 retries then, unnamed.
+over_cap_reply() {
+  CAP_RETRY=false
+  CAP_STATUS=
+  if [ "$HTTP_CODE" = "429" ]; then
+    CAP_RETRY=true
+    CAP_STATUS=$(printf '%s' "$BODY" | jq -r '.error.status // empty' 2>/dev/null) ||
+      CAP_STATUS=
+    return
   fi
+  if [ "$HTTP_CODE" = "400" ] &&
+    printf '%s' "$BODY" | jq -e '.error.status == "FAILED_PRECONDITION"' > /dev/null 2>&1; then
+    CAP_RETRY=true
+    CAP_STATUS=FAILED_PRECONDITION
+  fi
+}
+
+# api_request <retry-policy> <curl args...>
+# Sets HTTP_CODE and BODY. api_request owns every retry; one curl call is
+# exactly one transfer, because curl's own --retry would write each
+# attempt's body to the same stdout (a non-JSON 503 before a 400 leaves BODY
+# unparseable) and would honor Retry-After itself, off-schedule. Each policy
+# quick-retries its failures, sleep 1 before each, on one counter of its own:
+#   connect   - twice, and only when the request never left this machine
+#               (curl exit 6: DNS, 7: connect). Used for create: POST
+#               /sessions is not idempotent, and a retry after a lost
+#               response would start a duplicate session and a duplicate PR.
+#               Nothing else is ever re-sent: any other curl failure errors
+#               as one that may already have reached Jules, and no HTTP
+#               status retries.
+#   transient - three times, also on curl exit 28 (timeout) and HTTP 408,
+#               500, 502, 503 and 504. Idempotent calls only (delete). Once
+#               the quick retries run out, a curl failure errors as
+#               unreachable and an HTTP status is returned for the caller's
+#               fail_http.
+# Both policies also wait and re-send an over-cap reply (see over_cap_reply):
+# four retries, at 5, 10, 15 and 30 minutes after the first failure (waits of
+# 5, 5, 5 and 15 minutes), counted apart from the quick retries, then the
+# last reply is left for the caller's fail_http.
+api_request() {
+  local policy="$1" response status attempt=1 cap_tries=0 cap_wait
+  shift
+  local transient_status='^(408|500|502|503|504)$' quick_max=3
+  if [ "$policy" = "connect" ]; then
+    quick_max=2
+  fi
+  local -a cap_waits=(300 300 300 900)
 
   while :; do
     status=0
-    response=$(curl -sS --connect-timeout 10 --max-time 60 \
-      ${retry[@]+"${retry[@]}"} \
+    # -q must come first: it keeps a runner's ~/.curlrc (say, `retry = 3`)
+    # from adding retries of its own to these calls.
+    response=$(curl -q -sS --connect-timeout 10 --max-time 60 \
       -H @"$KEY_HEADER_FILE" \
       -w '\n%{http_code}' "$@") || status=$?
     if [ "$status" -eq 0 ]; then
-      break
+      HTTP_CODE=$(printf '%s\n' "$response" | tail -1)
+      BODY=$(printf '%s\n' "$response" | sed '$d')
+      over_cap_reply
+      if [ "$CAP_RETRY" = "true" ] && [ "$cap_tries" -lt "${#cap_waits[@]}" ]; then
+        cap_wait=${cap_waits[$cap_tries]}
+        cap_tries=$((cap_tries + 1))
+        annotate warning "Jules API returned HTTP $HTTP_CODE${CAP_STATUS:+ $CAP_STATUS} (the account may be at its concurrency cap); retrying in $((cap_wait / 60)) minutes (retry $cap_tries of ${#cap_waits[@]})"
+        sleep "$cap_wait"
+        continue
+      fi
+      # A transient status is re-sent a second apart; once the quick
+      # retries are spent, the last status reaches the caller's fail_http.
+      if [ "$policy" = "transient" ] && [ "$attempt" -le "$quick_max" ] &&
+        [[ "$HTTP_CODE" =~ $transient_status ]]; then
+        attempt=$((attempt + 1))
+        sleep 1
+        continue
+      fi
+      return
     fi
-    if [ "$policy" = "connect" ] && [ "$attempt" -lt 3 ] &&
-      { [ "$status" -eq 6 ] || [ "$status" -eq 7 ]; }; then
+    # A request that never left this machine is re-sent a second apart; for
+    # the transient policy, so is one that timed out.
+    if [ "$attempt" -le "$quick_max" ] &&
+      { [ "$status" -eq 7 ] ||
+        { [ "$policy" = "connect" ] && [ "$status" -eq 6 ]; } ||
+        { [ "$policy" = "transient" ] && [ "$status" -eq 28 ]; }; }; then
       attempt=$((attempt + 1))
       sleep 1
       continue
@@ -115,9 +178,6 @@ api_request() {
     fi
     error "Could not reach the Jules API (curl exit $status)"
   done
-
-  HTTP_CODE=$(printf '%s\n' "$response" | tail -1)
-  BODY=$(printf '%s\n' "$response" | sed '$d')
 }
 
 # Fails with a bounded, single-line annotation; the full body goes to the log

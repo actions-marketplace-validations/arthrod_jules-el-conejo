@@ -10,6 +10,7 @@ import {
   type MockJules,
   makeScratchDir,
   runJules,
+  SESSION,
   startMockJules,
   WARNING,
 } from "./helpers";
@@ -218,6 +219,28 @@ describe("jules.sh HTTP handling", () => {
     expect(mock.requests).toHaveLength(1);
   }, 15_000);
 
+  it("create ignores a curlrc that asks curl to retry", async () => {
+    // A runner's ~/.curlrc is read unless -q comes first; `retry = 3` there
+    // would re-send the non-idempotent POST behind api_request's back.
+    const home = await makeScratchDir("jules-curlrc-");
+    await writeFile(join(home, ".curlrc"), "retry = 3\nretry-delay = 1\n");
+    let calls = 0;
+    mock = await startMockJules(() => {
+      calls += 1;
+      return calls === 1
+        ? json(503, { error: { message: "unavailable" } })
+        : json(200, SESSION);
+    });
+    const result = await runJules("create", {
+      ...createEnv(mock.baseUrl),
+      HOME: home,
+    });
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 503`);
+    expect(mock.requests).toHaveLength(1);
+  }, 15_000);
+
   it("delete retries a transient 503 and succeeds", async () => {
     let calls = 0;
     mock = await startMockJules(() => {
@@ -239,6 +262,21 @@ describe("jules.sh HTTP handling", () => {
 
       expect(result.code).toBe(1);
       expect(result.stdout).toContain(`${ERROR}Could not reach the Jules API`);
+    }, 15_000);
+
+    it("create tries a refused connection three times in all", async () => {
+      const shim = await makeCurlShim();
+      const dead = await startMockJules();
+      const baseUrl = dead.baseUrl;
+      await dead.close();
+      const result = await runJules("create", {
+        ...createEnv(baseUrl),
+        PATH: `${shim.dir}:${process.env.PATH ?? ""}`,
+      });
+
+      expect(result.code).toBe(1);
+      const argv = (await readFile(shim.log, "utf8")).split("\n");
+      expect(argv.filter((arg) => arg === "--connect-timeout")).toHaveLength(3);
     }, 15_000);
 
     it("create says a session may exist when the reply is lost", async () => {
