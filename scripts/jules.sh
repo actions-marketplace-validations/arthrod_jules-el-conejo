@@ -135,7 +135,9 @@ api_request() {
 
   while :; do
     status=0
-    response=$(curl -sS --connect-timeout 10 --max-time 60 \
+    # -q must come first: it keeps a runner's ~/.curlrc (say, `retry = 3`)
+    # from adding retries of its own to these calls.
+    response=$(curl -q -sS --connect-timeout 10 --max-time 60 \
       -H @"$KEY_HEADER_FILE" \
       -w '\n%{http_code}' "$@") || status=$?
     if [ "$status" -eq 0 ]; then

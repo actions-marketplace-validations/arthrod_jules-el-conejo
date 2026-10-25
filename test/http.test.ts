@@ -10,6 +10,7 @@ import {
   type MockJules,
   makeScratchDir,
   runJules,
+  SESSION,
   startMockJules,
   WARNING,
 } from "./helpers";
@@ -212,6 +213,28 @@ describe("jules.sh HTTP handling", () => {
       json(503, { error: { message: "unavailable" } }),
     );
     const result = await runJules("create", createEnv(mock.baseUrl));
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 503`);
+    expect(mock.requests).toHaveLength(1);
+  }, 15_000);
+
+  it("create ignores a curlrc that asks curl to retry", async () => {
+    // A runner's ~/.curlrc is read unless -q comes first; `retry = 3` there
+    // would re-send the non-idempotent POST behind api_request's back.
+    const home = await makeScratchDir("jules-curlrc-");
+    await writeFile(join(home, ".curlrc"), "retry = 3\nretry-delay = 1\n");
+    let calls = 0;
+    mock = await startMockJules(() => {
+      calls += 1;
+      return calls === 1
+        ? json(503, { error: { message: "unavailable" } })
+        : json(200, SESSION);
+    });
+    const result = await runJules("create", {
+      ...createEnv(mock.baseUrl),
+      HOME: home,
+    });
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(`${ERROR}Jules API returned HTTP 503`);
