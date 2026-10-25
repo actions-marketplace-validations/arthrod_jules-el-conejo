@@ -107,18 +107,19 @@ over_cap_reply() {
 # exactly one transfer, because curl's own --retry would write each
 # attempt's body to the same stdout (a non-JSON 503 before a 400 leaves BODY
 # unparseable) and would honor Retry-After itself, off-schedule. Each policy
-# quick-retries its failures up to 3 times, sleep 1 before each, on one
-# counter of its own:
-#   connect   - only when the request never left this machine (curl exit
-#               6: DNS, 7: connect). Used for create: POST /sessions is not
-#               idempotent, and a retry after a lost response would start a
-#               duplicate session and a duplicate PR. Nothing else is ever
-#               re-sent: any other curl failure errors as one that may
-#               already have reached Jules, and no HTTP status retries.
-#   transient - also curl exit 28 (timeout) and HTTP 408, 500, 502, 503 and
-#               504. Idempotent calls only (delete). Once the quick retries
-#               run out, a curl failure errors as unreachable and an HTTP
-#               status is returned for the caller's fail_http.
+# quick-retries its failures, sleep 1 before each, on one counter of its own:
+#   connect   - twice, and only when the request never left this machine
+#               (curl exit 6: DNS, 7: connect). Used for create: POST
+#               /sessions is not idempotent, and a retry after a lost
+#               response would start a duplicate session and a duplicate PR.
+#               Nothing else is ever re-sent: any other curl failure errors
+#               as one that may already have reached Jules, and no HTTP
+#               status retries.
+#   transient - three times, also on curl exit 28 (timeout) and HTTP 408,
+#               500, 502, 503 and 504. Idempotent calls only (delete). Once
+#               the quick retries run out, a curl failure errors as
+#               unreachable and an HTTP status is returned for the caller's
+#               fail_http.
 # Both policies also wait and re-send an over-cap reply (see over_cap_reply):
 # four retries, at 5, 10, 15 and 30 minutes after the first failure (waits of
 # 5, 5, 5 and 15 minutes), counted apart from the quick retries, then the
@@ -126,7 +127,10 @@ over_cap_reply() {
 api_request() {
   local policy="$1" response status attempt=1 cap_tries=0 cap_wait
   shift
-  local transient_status='^(408|500|502|503|504)$'
+  local transient_status='^(408|500|502|503|504)$' quick_max=3
+  if [ "$policy" = "connect" ]; then
+    quick_max=2
+  fi
   local -a cap_waits=(300 300 300 900)
 
   while :; do
@@ -145,9 +149,9 @@ api_request() {
         sleep "$cap_wait"
         continue
       fi
-      # A transient status is re-sent a second apart; once the three
-      # re-sends are spent, the last status reaches the caller's fail_http.
-      if [ "$policy" = "transient" ] && [ "$attempt" -le 3 ] &&
+      # A transient status is re-sent a second apart; once the quick
+      # retries are spent, the last status reaches the caller's fail_http.
+      if [ "$policy" = "transient" ] && [ "$attempt" -le "$quick_max" ] &&
         [[ "$HTTP_CODE" =~ $transient_status ]]; then
         attempt=$((attempt + 1))
         sleep 1
@@ -157,7 +161,7 @@ api_request() {
     fi
     # A request that never left this machine is re-sent a second apart; for
     # the transient policy, so is one that timed out.
-    if [ "$attempt" -le 3 ] &&
+    if [ "$attempt" -le "$quick_max" ] &&
       { [ "$status" -eq 7 ] ||
         { [ "$policy" = "connect" ] && [ "$status" -eq 6 ]; } ||
         { [ "$policy" = "transient" ] && [ "$status" -eq 28 ]; }; }; then

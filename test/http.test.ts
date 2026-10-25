@@ -241,6 +241,21 @@ describe("jules.sh HTTP handling", () => {
       expect(result.stdout).toContain(`${ERROR}Could not reach the Jules API`);
     }, 15_000);
 
+    it("create tries a refused connection three times in all", async () => {
+      const shim = await makeCurlShim();
+      const dead = await startMockJules();
+      const baseUrl = dead.baseUrl;
+      await dead.close();
+      const result = await runJules("create", {
+        ...createEnv(baseUrl),
+        PATH: `${shim.dir}:${process.env.PATH ?? ""}`,
+      });
+
+      expect(result.code).toBe(1);
+      const argv = (await readFile(shim.log, "utf8")).split("\n");
+      expect(argv.filter((arg) => arg === "--connect-timeout")).toHaveLength(3);
+    }, 15_000);
+
     it("create says a session may exist when the reply is lost", async () => {
       const methods: string[] = [];
       const server = createServer((req, res) => {
