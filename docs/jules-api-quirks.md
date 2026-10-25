@@ -23,7 +23,7 @@ Compute the diff on the runner, where the history is, and hand Jules the text. D
 
 | Route | Verified | Limit |
 |---|---|---|
-| In the create `prompt` | 150 KB echoed byte-identical; Jules quoted seeded tokens from its start, middle and end (S9) | The action passes the prompt through an environment variable, and Linux caps one env string at 128 KiB |
+| In the create `prompt` | A 150,386-character prompt, sent with curl straight to the API (not through this action), was echoed byte-identical, and Jules quoted seeded tokens from its start, middle and end (S9) | **Through this action, about 128 KiB at most.** `prompt` reaches the script in the `JULES_PROMPT` environment variable, and Linux refuses any env string over 131,072 bytes, counting the name (in `ubuntu:24.04`: `Argument list too long`). A bigger prompt fails the step before any API call. |
 | In a `sendMessage` (follow-ups) | 150 KB stored byte-identical; tokens quoted correctly (S10) | — |
 | In a file committed for the review, on a tag passed as `startingBranch` | 600,000-byte `.tmp/jules-review/pr.diff` on a commit on top of main, reachable only from a tag: HEAD was that commit, `sha256sum` matched the hash computed outside the session, and Jules quoted the seeded tokens on lines 1, 12,500 and 25,000 (S12) | no env limit; the PR branch is not touched. Jules only reads the file because the prompt names it |
 | Sent as a patch for Jules to `git apply` | applied cleanly, file hash matched (S8 turn 3) | — |
@@ -73,7 +73,7 @@ A comment on a PR that Jules opened wakes the session behind it, and the API doe
 | `sendMessage` while at the cap | 429 `RESOURCE_EXHAUSTED`; **the message is not stored** |
 
 - **The cap is on working (QUEUED/IN_PROGRESS) sessions per account**, about 11 here. Idle sessions (COMPLETED, AWAITING_USER_FEEDBACK, PAUSED) don't count, but waking one with a message takes a slot. The listed state lags, so don't compute headroom from it.
-- **Rule: on a 429, or a 400 whose `error.status` is `FAILED_PRECONDITION`, wait and retry at 5, 10, 15 and 30 minutes after the first failure, then give up.** Neither rejection leaves anything behind, so a retry cannot duplicate a session or a message. Any other 400 is permanent and fails at once. `scripts/jules.sh` follows this rule for create and delete (#24).
+- **Rule: on a 429, or a 400 whose `error.status` is `FAILED_PRECONDITION`, wait and retry at 5, 10, 15 and 30 minutes after the first failure, then give up.** Neither rejection leaves anything behind, so a retry cannot duplicate a session or a message. Any other 400 is permanent and fails at once. `scripts/jules.sh` implements this rule for create and delete (#24).
 
 ## Evidence
 
