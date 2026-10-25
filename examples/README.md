@@ -99,7 +99,7 @@ A 4-stage automated PR reviewer and companion remediation pipeline:
 1. **Stage 1 — Multi-Tool Static Analysis:** Executes `gitleaks`, `ruff`, `pip-audit`, `biome`, `cargo clippy`, `cargo deny`, `shellcheck`, `actionlint`, `markdownlint-cli2`, and `yamllint`.
 2. **Stage 2 — Strict Multi-Language Typechecking:** Executes `pyrefly check`, `tsc --noEmit`, and `cargo check --all-targets --all-features`.
 3. **Stage 3 — Detailed PR Review Comment:** Posts a structured Markdown review report on the PR summarizing static analysis, typecheck diagnostics, and `pr-body-visualizer` compliance.
-4. **Stage 4 — Companion Remediation PR:** Invokes `arthrod/jules-el-conejo@main` starting from the PR head branch with all diagnostics and skills injected so Jules opens a companion PR fixing every detected issue.
+4. **Stage 4 — Companion Remediation PR:** Invokes `arthrod/jules-el-conejo@v1` starting from the PR head branch with all diagnostics and skills injected so Jules opens a companion PR fixing every detected issue.
 
 ---
 

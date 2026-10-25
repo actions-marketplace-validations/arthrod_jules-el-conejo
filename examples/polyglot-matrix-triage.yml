@@ -106,8 +106,8 @@ jobs:
 
       # 🥕 Launch a dedicated Jules session for this stack with its injected skill bundle.
       - name: 🐇 Run Jules, el conejo (${{ matrix.target.stack }})
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           prompt: |
             You are a specialized Polyglot Triage & Architecture Enforcement Agent assigned to the **`${{ matrix.target.stack }}`** stack.

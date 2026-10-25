@@ -64,10 +64,22 @@ describe("the action is branded Jules, el conejo", () => {
 
       expect(uses.length).toBeGreaterThan(0);
       for (const ref of uses) {
-        expect(ref).toMatch(/^arthrod\/jules-el-conejo@/);
+        // @v1 follows the published 1.x releases; @main would follow every merge.
+        expect(ref).toBe("arthrod/jules-el-conejo@v1");
       }
     },
   );
+
+  it("the README's snippets run this action at @v1", () => {
+    const refs = [
+      ...read("README.md").matchAll(/uses:\s*(arthrod\/jules-el-conejo@\S+)/g),
+    ].map((m) => m[1]);
+
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.filter((ref) => ref !== "arthrod/jules-el-conejo@v1")).toEqual(
+      [],
+    );
+  });
 });
 
 describe("every instruction carries carrots and rabbits", () => {

@@ -85,8 +85,8 @@ jobs:
       # are gone from Jules once this step succeeds.
       - name: 🐇 Delete the Jules session with Jules, el conejo
         if: steps.extract.outputs.found == 'true'
-        # 🥕 Pin to a release tag or commit SHA instead of @main in your workflows.
-        uses: arthrod/jules-el-conejo@main
+        # 🥕 @v1 follows the 1.x releases; pin a commit SHA for supply-chain safety.
+        uses: arthrod/jules-el-conejo@v1
         with:
           mode: delete
           session_id: ${{ steps.extract.outputs.session_id }}
